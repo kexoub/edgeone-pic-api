@@ -17,6 +17,57 @@
          ],
          "source": "/images/*"
        },
+      {
+         "headers": [
+           {
+             "key": "Access-Control-Allow-Origin",
+             "value": "*"
+           },
+           {
+             "key": "Access-Control-Allow-Methods",
+             "value": "GET, POST, OPTIONS"
+           },
+           {
+             "key": "Access-Control-Allow-Headers",
+             "value": "Content-Type, User-Agent"
+           }
+         ],
+         "source": "/pc"
+       },
+      {
+         "headers": [
+           {
+             "key": "Access-Control-Allow-Origin",
+             "value": "*"
+           },
+           {
+             "key": "Access-Control-Allow-Methods",
+             "value": "GET, POST, OPTIONS"
+           },
+           {
+             "key": "Access-Control-Allow-Headers",
+             "value": "Content-Type, User-Agent"
+           }
+         ],
+         "source": "/pe"
+       },
+      {
+         "headers": [
+           {
+             "key": "Access-Control-Allow-Origin",
+             "value": "*"
+           },
+           {
+             "key": "Access-Control-Allow-Methods",
+             "value": "GET, POST, OPTIONS"
+           },
+           {
+             "key": "Access-Control-Allow-Headers",
+             "value": "Content-Type, User-Agent"
+           }
+         ],
+         "source": "/au*"
+       },
        {
          "headers": [
            {
