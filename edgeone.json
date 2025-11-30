@@ -1,0 +1,20 @@
+{
+    "redirects": [
+      {
+        "source": "/pc",
+        "destination": "/?type=pc",
+        "statusCode": 302
+      },
+      {
+        "source": "/pe",
+        "destination": "/?type=pe",
+        "statusCode": 302
+      },
+      {
+        "source": "/ua",
+        "destination": "/?type=ua",
+        "statusCode": 302
+      }
+      
+    ]
+}
