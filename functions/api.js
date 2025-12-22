@@ -27,7 +27,7 @@ function isMobileDevice(userAgent) {
     return mobileRegex.test(userAgent);
 }
 
-// 图片数组（保持不变）
+// 这里保持你的完整图片数组
 var pcImages = [
   "084e488e57a0ec6d5cc3ed0bd555b464108550804.webp",
   "100234583_p0.webp",
@@ -1013,6 +1013,7 @@ function getRandomImages(images, count) {
     var maxCount = Math.min(count, images.length);
     var shuffled = [...images];
     
+    // 随机打乱数组
     for (var i = shuffled.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -1061,7 +1062,6 @@ async function handleRequest(request) {
         }
         
         var url = new URL(request.url);
-        var pathname = url.pathname;
         var imgType = url.searchParams.get('type');
         var format = url.searchParams.get('format') || 'json';
         var count = parseInt(url.searchParams.get('count')) || 1;
@@ -1080,92 +1080,97 @@ async function handleRequest(request) {
             count = maxAllowedCount;
         }
         
-        // 处理特殊路径
-        if (pathname === '/random-ua') {
-            // 设备检测并重定向
-            var userAgent = request.headers.get('User-Agent') || '';
-            var isMobile = isMobileDevice(userAgent);
-            var randomImage = isMobile ? getRandomImage(peImages) : getRandomImage(pcImages);
-            var imageType = isMobile ? 'pe' : 'pc';
-            
-            if (!randomImage) {
-                return new Response('没有找到图片', {
-                    status: 404,
+        // 原项目的直接重定向逻辑（当只有type参数时）
+        if (imgType && !format && count === 1) {
+            if (imgType === 'pc') {
+                // 获取横屏图片并随机选择
+                var randomImage = getRandomImage(pcImages);
+                if (!randomImage) {
+                    throw new Error('没有可用的横屏图片');
+                }
+                var imageUrl = buildImageUrl(randomImage, 'pc', baseUrl);
+                
+                // 返回重定向
+                return new Response(null, {
+                    status: 302,
                     headers: {
-                        'Content-Type': 'text/plain; charset=utf-8',
+                        'Location': imageUrl,
+                        'Cache-Control': 'no-cache',
                         'Access-Control-Allow-Origin': '*'
                     }
                 });
-            }
-            
-            var imageUrl = buildImageUrl(randomImage, imageType, baseUrl);
-            return new Response(null, {
-                status: 302,
-                headers: {
-                    'Location': imageUrl,
-                    'Cache-Control': 'no-cache',
-                    'Access-Control-Allow-Origin': '*'
+            } else if (imgType === 'pe') {
+                // 获取竖屏图片并随机选择
+                var randomImage = getRandomImage(peImages);
+                if (!randomImage) {
+                    throw new Error('没有可用的竖屏图片');
                 }
-            });
-        } else if (pathname === '/random-pc') {
-            // 直接重定向到横屏图片
-            var randomImage = getRandomImage(pcImages);
-            if (!randomImage) {
-                return new Response('没有找到横屏图片', {
-                    status: 404,
+                var imageUrl = buildImageUrl(randomImage, 'pe', baseUrl);
+                
+                // 返回重定向
+                return new Response(null, {
+                    status: 302,
                     headers: {
-                        'Content-Type': 'text/plain; charset=utf-8',
+                        'Location': imageUrl,
+                        'Cache-Control': 'no-cache',
                         'Access-Control-Allow-Origin': '*'
                     }
                 });
-            }
-            
-            var imageUrl = buildImageUrl(randomImage, 'pc', baseUrl);
-            return new Response(null, {
-                status: 302,
-                headers: {
-                    'Location': imageUrl,
-                    'Cache-Control': 'no-cache',
-                    'Access-Control-Allow-Origin': '*'
-                }
-            });
-        } else if (pathname === '/random-pe') {
-            // 直接重定向到竖屏图片
-            var randomImage = getRandomImage(peImages);
-            if (!randomImage) {
-                return new Response('没有找到竖屏图片', {
-                    status: 404,
-                    headers: {
-                        'Content-Type': 'text/plain; charset=utf-8',
-                        'Access-Control-Allow-Origin': '*'
+            } else if (imgType === 'ua') {
+                // 根据User-Agent检测设备类型
+                var userAgent = request.headers.get('User-Agent') || '';
+                var isMobile = isMobileDevice(userAgent);
+                
+                if (isMobile) {
+                    // 移动设备，返回竖屏图片
+                    var randomImage = getRandomImage(peImages);
+                    if (!randomImage) {
+                        throw new Error('没有可用的竖屏图片');
                     }
-                });
-            }
-            
-            var imageUrl = buildImageUrl(randomImage, 'pe', baseUrl);
-            return new Response(null, {
-                status: 302,
-                headers: {
-                    'Location': imageUrl,
-                    'Cache-Control': 'no-cache',
-                    'Access-Control-Allow-Origin': '*'
+                    var imageUrl = buildImageUrl(randomImage, 'pe', baseUrl);
+                    
+                    return new Response(null, {
+                        status: 302,
+                        headers: {
+                            'Location': imageUrl,
+                            'Cache-Control': 'no-cache',
+                            'Access-Control-Allow-Origin': '*'
+                        }
+                    });
+                } else {
+                    // 桌面设备，返回横屏图片
+                    var randomImage = getRandomImage(pcImages);
+                    if (!randomImage) {
+                        throw new Error('没有可用的横屏图片');
+                    }
+                    var imageUrl = buildImageUrl(randomImage, 'pc', baseUrl);
+                    
+                    return new Response(null, {
+                        status: 302,
+                        headers: {
+                            'Location': imageUrl,
+                            'Cache-Control': 'no-cache',
+                            'Access-Control-Allow-Origin': '*'
+                        }
+                    });
                 }
-            });
+            }
         }
         
         // 处理没有type参数的情况
         if (!imgType) {
             var helpText = '🖼️ 随机图片展示器 API\n\n';
-            helpText += '直接访问:\n';
-            helpText += '• /pc - 重定向到横屏图片\n';
-            helpText += '• /pe - 重定向到竖屏图片\n';
-            helpText += '• /ua - 根据设备类型重定向\n';
+            helpText += '使用方法:\n';
+            helpText += '• ?type=pc - 重定向到横屏随机图片\n';
+            helpText += '• ?type=pe - 重定向到竖屏随机图片\n';
+            helpText += '• ?type=ua - 根据设备类型重定向\n';
             helpText += '\nAPI参数:\n';
-            helpText += '• ?type=pc - 获取横屏图片\n';
-            helpText += '• ?type=pe - 获取竖屏图片\n';
-            helpText += '• ?type=ua - 根据设备类型选择\n';
             helpText += '• ?format=text - 以文本格式返回URL\n';
-            helpText += '• ?count=N - 返回N张图片\n';
+            helpText += '• ?count=N - 返回N张图片（1-50）\n';
+            helpText += '\n示例:\n';
+            helpText += '• /api/?type=ua - 重定向到单张图片\n';
+            helpText += '• /api/?type=pc&format=text&count=4 - 返回4张图片URL\n';
+            helpText += '• /api/?type=pe&count=3 - 返回3张图片JSON\n';
             
             return new Response(helpText, {
                 status: 200,
@@ -1176,7 +1181,7 @@ async function handleRequest(request) {
             });
         }
         
-        // 确定设备类型
+        // 确定设备类型（用于API调用）
         var deviceType = imgType;
         if (imgType === 'ua') {
             var userAgent = request.headers.get('User-Agent') || '';
