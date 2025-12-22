@@ -1,55 +1,74 @@
 {
-    "headers": [
+  "headers": [
+    {
+      "source": "/images/*",
+      "headers": [
         {
-            "headers": [
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                },
-                {
-                    "key": "Access-Control-Allow-Methods",
-                    "value": "GET, POST, OPTIONS"
-                },
-                {
-                    "key": "Access-Control-Allow-Headers",
-                    "value": "Content-Type, User-Agent"
-                }
-            ],
-            "source": "/images/*"
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
         },
         {
-            "headers": [
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                },
-                {
-                    "key": "Access-Control-Allow-Methods",
-                    "value": "GET, POST, OPTIONS"
-                },
-                {
-                    "key": "Access-Control-Allow-Headers",
-                    "value": "Content-Type, User-Agent"
-                }
-            ],
-            "source": "/api/*"
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, User-Agent, Accept"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
         }
-    ],
-    "redirects": [
+      ]
+    },
+    {
+      "source": "/api/*",
+      "headers": [
         {
-            "source": "/pc",
-            "destination": "/api/?type=pc&return=redirect",
-            "statusCode": 302
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
         },
         {
-            "source": "/pe",
-            "destination": "/api/?type=pe&return=redirect",
-            "statusCode": 302
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, OPTIONS"
         },
         {
-            "source": "/ua",
-            "destination": "/api/?type=ua&return=redirect",
-            "statusCode": 302
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, User-Agent, Accept"
+        },
+        {
+          "key": "Access-Control-Expose-Headers",
+          "value": "Location"
         }
-    ]
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/pc",
+      "destination": "/api/?type=pc&return=redirect",
+      "statusCode": 302
+    },
+    {
+      "source": "/pe", 
+      "destination": "/api/?type=pe&return=redirect",
+      "statusCode": 302
+    },
+    {
+      "source": "/ua",
+      "destination": "/api/?type=ua&return=redirect", 
+      "statusCode": 302
+    },
+    {
+      "source": "/random",
+      "destination": "/api/?type=ua",
+      "statusCode": 302
+    }
+  ],
+  "routes": [
+    {
+      "pattern": "/api/*",
+      "rewrite": "/functions/api.js"
+    }
+  ]
 }
