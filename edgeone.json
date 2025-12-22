@@ -32,89 +32,23 @@
                     "value": "Content-Type, User-Agent"
                 }
             ],
-            "source": "/pc"
-        },
-        {
-            "headers": [
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                },
-                {
-                    "key": "Access-Control-Allow-Methods",
-                    "value": "GET, POST, OPTIONS"
-                },
-                {
-                    "key": "Access-Control-Allow-Headers",
-                    "value": "Content-Type, User-Agent"
-                }
-            ],
-            "source": "/pe"
-        },
-        {
-            "headers": [
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                },
-                {
-                    "key": "Access-Control-Allow-Methods",
-                    "value": "GET, POST, OPTIONS"
-                },
-                {
-                    "key": "Access-Control-Allow-Headers",
-                    "value": "Content-Type, User-Agent"
-                }
-            ],
-            "source": "/au*"
-        },
-        {
-            "headers": [
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                },
-                {
-                    "key": "Access-Control-Allow-Methods",
-                    "value": "GET, POST, OPTIONS"
-                },
-                {
-                    "key": "Access-Control-Allow-Headers",
-                    "value": "Content-Type, User-Agent"
-                }
-            ],
             "source": "/api/*"
         }
     ],
     "redirects": [
         {
             "source": "/pc",
-            "destination": "/api/?type=pc",
+            "destination": "/api/?type=pc&return=redirect",
             "statusCode": 302
         },
         {
             "source": "/pe",
-            "destination": "/api/?type=pe",
+            "destination": "/api/?type=pe&return=redirect",
             "statusCode": 302
         },
         {
             "source": "/ua",
-            "destination": "/api/?type=ua",
-            "statusCode": 302
-        },
-        {
-            "source": "/pc/text",
-            "destination": "/api/?type=pc&format=text&count=1",
-            "statusCode": 302
-        },
-        {
-            "source": "/pe/text",
-            "destination": "/api/?type=pe&format=text&count=1",
-            "statusCode": 302
-        },
-        {
-            "source": "/ua/text",
-            "destination": "/api/?type=ua&format=text&count=1",
+            "destination": "/api/?type=ua&return=redirect",
             "statusCode": 302
         }
     ]
