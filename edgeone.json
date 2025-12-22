@@ -38,17 +38,17 @@
     "redirects": [
         {
             "source": "/pc",
-            "destination": "https://img-pic-api.072168.xyz/images/pc/random",  
+            "destination": "/api/?type=pc&return=redirect",
             "statusCode": 302
         },
         {
             "source": "/pe",
-            "destination": "https://img-pic-api.072168.xyz/images/pe/random",  
+            "destination": "/api/?type=pe&return=redirect",
             "statusCode": 302
         },
         {
             "source": "/ua",
-            "destination": "https://img-pic-api.072168.xyz/api/random-ua",     
+            "destination": "/api/?type=ua&return=redirect",
             "statusCode": 302
         }
     ]
