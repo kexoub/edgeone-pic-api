@@ -637,7 +637,7 @@ const IMAGES = {
   "GZBNVh1bgAAvAZG_scale.webp",
   "nachoneko-8276179.webp",
   "nachoneko-8276179_2.webp"
-]
+],
 
 // 竖屏图片列表 (PE)
  pe: [
@@ -1271,4 +1271,5 @@ async function handleRequest(request) {
         });
     }
 }
+
 
