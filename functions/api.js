@@ -3,7 +3,7 @@ export function onRequest(context) {
     return handleRequest(context.request);
 }
 
-// 检测是否为移动设备
+// 检测是否为移动设备（使用你提供的版本）
 function isMobileDevice(userAgent) {
     if (!userAgent) return false;
     
@@ -995,15 +995,6 @@ var peImages = [
   "GZmKHXdaMAAIUbM_scale.webp"
 ];
 
-// 从列表中随机选择单张图片
-function getRandomImage(images) {
-    if (!images || images.length === 0) {
-        return null;
-    }
-    var randomIndex = Math.floor(Math.random() * images.length);
-    return images[randomIndex];
-}
-
 // 从列表中随机选择多张图片
 function getRandomImages(images, count) {
     if (!images || images.length === 0) {
@@ -1080,97 +1071,22 @@ async function handleRequest(request) {
             count = maxAllowedCount;
         }
         
-        // 原项目的直接重定向逻辑（当只有type参数时）
-        if (imgType && !format && count === 1) {
-            if (imgType === 'pc') {
-                // 获取横屏图片并随机选择
-                var randomImage = getRandomImage(pcImages);
-                if (!randomImage) {
-                    throw new Error('没有可用的横屏图片');
-                }
-                var imageUrl = buildImageUrl(randomImage, 'pc', baseUrl);
-                
-                // 返回重定向
-                return new Response(null, {
-                    status: 302,
-                    headers: {
-                        'Location': imageUrl,
-                        'Cache-Control': 'no-cache',
-                        'Access-Control-Allow-Origin': '*'
-                    }
-                });
-            } else if (imgType === 'pe') {
-                // 获取竖屏图片并随机选择
-                var randomImage = getRandomImage(peImages);
-                if (!randomImage) {
-                    throw new Error('没有可用的竖屏图片');
-                }
-                var imageUrl = buildImageUrl(randomImage, 'pe', baseUrl);
-                
-                // 返回重定向
-                return new Response(null, {
-                    status: 302,
-                    headers: {
-                        'Location': imageUrl,
-                        'Cache-Control': 'no-cache',
-                        'Access-Control-Allow-Origin': '*'
-                    }
-                });
-            } else if (imgType === 'ua') {
-                // 根据User-Agent检测设备类型
-                var userAgent = request.headers.get('User-Agent') || '';
-                var isMobile = isMobileDevice(userAgent);
-                
-                if (isMobile) {
-                    // 移动设备，返回竖屏图片
-                    var randomImage = getRandomImage(peImages);
-                    if (!randomImage) {
-                        throw new Error('没有可用的竖屏图片');
-                    }
-                    var imageUrl = buildImageUrl(randomImage, 'pe', baseUrl);
-                    
-                    return new Response(null, {
-                        status: 302,
-                        headers: {
-                            'Location': imageUrl,
-                            'Cache-Control': 'no-cache',
-                            'Access-Control-Allow-Origin': '*'
-                        }
-                    });
-                } else {
-                    // 桌面设备，返回横屏图片
-                    var randomImage = getRandomImage(pcImages);
-                    if (!randomImage) {
-                        throw new Error('没有可用的横屏图片');
-                    }
-                    var imageUrl = buildImageUrl(randomImage, 'pc', baseUrl);
-                    
-                    return new Response(null, {
-                        status: 302,
-                        headers: {
-                            'Location': imageUrl,
-                            'Cache-Control': 'no-cache',
-                            'Access-Control-Allow-Origin': '*'
-                        }
-                    });
-                }
-            }
-        }
-        
         // 处理没有type参数的情况
         if (!imgType) {
-            var helpText = '🖼️ 随机图片展示器 API\n\n';
+            var helpText = '🖼️ 随机图片展示器 API (EdgeOne Pages)\n\n';
             helpText += '使用方法:\n';
-            helpText += '• ?type=pc - 重定向到横屏随机图片\n';
-            helpText += '• ?type=pe - 重定向到竖屏随机图片\n';
-            helpText += '• ?type=ua - 根据设备类型重定向\n';
-            helpText += '\nAPI参数:\n';
-            helpText += '• ?format=text - 以文本格式返回URL\n';
+            helpText += '• ?type=pc - 获取横屏随机图片\n';
+            helpText += '• ?type=pe - 获取竖屏随机图片\n';
+            helpText += '• ?type=ua - 根据设备类型自动选择图片\n';
+            helpText += '\n可选参数:\n';
+            helpText += '• ?format=text - 以文本格式返回URL（每行一个）\n';
             helpText += '• ?count=N - 返回N张图片（1-50）\n';
+            helpText += '• ?return=json - 返回JSON格式（默认）\n';
+            helpText += '• ?return=redirect - 重定向到单张图片\n';
             helpText += '\n示例:\n';
-            helpText += '• /api/?type=ua - 重定向到单张图片\n';
-            helpText += '• /api/?type=pc&format=text&count=4 - 返回4张图片URL\n';
-            helpText += '• /api/?type=pe&count=3 - 返回3张图片JSON\n';
+            helpText += '• /api/?type=ua\n';
+            helpText += '• /api/?type=pc&format=text&count=4\n';
+            helpText += '• /api/?type=pe&count=3\n';
             
             return new Response(helpText, {
                 status: 200,
@@ -1181,7 +1097,7 @@ async function handleRequest(request) {
             });
         }
         
-        // 确定设备类型（用于API调用）
+        // 确定设备类型
         var deviceType = imgType;
         if (imgType === 'ua') {
             var userAgent = request.headers.get('User-Agent') || '';
@@ -1217,7 +1133,9 @@ async function handleRequest(request) {
                 status: 200,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
-                    'Cache-Control': 'no-cache',
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'Pragma': 'no-cache',
+                    'Expires': '0',
                     'Access-Control-Allow-Origin': '*'
                 }
             });
@@ -1246,7 +1164,9 @@ async function handleRequest(request) {
             status: 200,
             headers: {
                 'Content-Type': 'application/json; charset=utf-8',
-                'Cache-Control': 'no-cache',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
                 'Access-Control-Allow-Origin': '*'
             }
         });
