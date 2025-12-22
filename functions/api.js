@@ -1,34 +1,125 @@
-// EdgeOne Pages Function export 
+// EdgeOne Pages Function export
 export function onRequest(context) {
     return handleRequest(context.request);
 }
 
-// 检测是否为移动设备（使用你提供的版本）
+/**
+ * 检测是否为移动设备（优化版本）
+ * @param {string} userAgent - 用户代理字符串
+ * @returns {boolean} 是否为移动设备
+ */
 function isMobileDevice(userAgent) {
-    if (!userAgent) return false;
-    
-    var mobileKeywords = [
-        'Mobile', 'Android', 'iPhone', 'iPad', 'iPod', 'BlackBerry', 
+    if (!userAgent || typeof userAgent !== 'string') return false;
+
+    const mobileKeywords = [
+        'Mobile', 'Android', 'iPhone', 'iPad', 'iPod', 'BlackBerry',
         'Windows Phone', 'Opera Mini', 'IEMobile', 'Mobile Safari',
         'webOS', 'Kindle', 'Silk', 'Fennec', 'Maemo', 'Tablet'
     ];
-    
-    var lowerUserAgent = userAgent.toLowerCase();
-    
-    // 检查移动设备关键词
-    for (var i = 0; i < mobileKeywords.length; i++) {
-        if (lowerUserAgent.includes(mobileKeywords[i].toLowerCase())) {
+
+    const lowerUA = userAgent.toLowerCase();
+
+    // 快速关键词匹配
+    for (let i = 0; i < mobileKeywords.length; i++) {
+        if (lowerUA.includes(mobileKeywords[i].toLowerCase())) {
             return true;
         }
     }
-    
-    // 检查移动设备正则表达式
-    var mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+
+    // 正则兜底（性能稍低但覆盖更全）
+    const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
     return mobileRegex.test(userAgent);
 }
 
-// 这里保持你的完整图片数组
-var pcImages = [
+/**
+ * 安全地获取随机索引（使用加密安全随机数）
+ * @param {number} max - 最大值（不包含）
+ * @returns {number} 随机索引
+ */
+function getRandomIndex(max) {
+    if (max <= 0) return 0;
+    if (max === 1) return 0;
+
+    // 使用 EdgeOne 支持的 crypto API 获取更安全的随机数
+    const array = new Uint32Array(1);
+    crypto.getRandomValues(array);
+    return array[0] % max;
+}
+
+/**
+ * 从数组中随机选择一个元素
+ * @param {Array} arr - 目标数组
+ * @returns {any|null} 随机元素或 null
+ */
+function getRandomItem(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    const index = getRandomIndex(arr.length);
+    return arr[index];
+}
+
+/**
+ * 从数组中随机选择多个不重复元素（洗牌算法）
+ * @param {Array} arr - 目标数组
+ * @param {number} count - 数量
+ * @returns {Array} 随机元素数组
+ */
+function getRandomItems(arr, count) {
+    if (!Array.isArray(arr) || arr.length === 0) return [];
+    
+    const limit = Math.min(count, arr.length, 100); // 限制最大数量
+    const result = [];
+    const copy = [...arr];
+    
+    // Fisher-Yates 洗牌算法（前 n 个）
+    for (let i = 0; i < limit; i++) {
+        const j = i + getRandomIndex(copy.length - i);
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+        result.push(copy[i]);
+    }
+    
+    return result;
+}
+
+/**
+ * 构建图片 URL
+ * @param {string} filename - 文件名
+ * @param {string} type - 类型 (pc/pe)
+ * @param {string} baseUrl - 基础域名
+ * @returns {string|null} 完整 URL
+ */
+function buildImageUrl(filename, type, baseUrl) {
+    if (!filename || !type || !baseUrl) return null;
+
+    let path;
+    if (type === 'pc') {
+        path = '/images/pc/' + filename;
+    } else if (type === 'pe') {
+        path = '/images/pe/' + filename;
+    } else {
+        return null;
+    }
+    
+    return baseUrl + path;
+}
+
+/**
+ * 获取请求的基础 URL
+ * @param {Request} request - 请求对象
+ * @returns {string} 基础 URL
+ */
+function getBaseUrl(request) {
+    try {
+        const url = new URL(request.url);
+        return url.origin;
+    } catch (e) {
+        // EdgeOne Pages 默认域名格式
+        return 'https://your-domain.pages.dev'; // 请替换为你的实际域名
+    }
+}
+
+// 图片列表（保持原数据不变）
+const IMAGES = {
+  pc: [
   "084e488e57a0ec6d5cc3ed0bd555b464108550804.webp",
   "100234583_p0.webp",
   "100298143_p0.webp",
@@ -549,7 +640,7 @@ var pcImages = [
 ];
 
 // 竖屏图片列表 (PE)
-var peImages = [
+ pe: [
   "100033979_p0_scale.webp",
   "100605558_p0.webp",
   "101428152_p0.webp",
@@ -993,194 +1084,188 @@ var peImages = [
   "GYVXb71aUAAVXHT_scale.webp",
   "GzFp4ygbMAAI8tJ.webp",
   "GZmKHXdaMAAIUbM_scale.webp"
-];
+]
+};
 
-// 从列表中随机选择多张图片
-function getRandomImages(images, count) {
-    if (!images || images.length === 0) {
-        return [];
-    }
-    
-    var maxCount = Math.min(count, images.length);
-    var shuffled = [...images];
-    
-    // 随机打乱数组
-    for (var i = shuffled.length - 1; i > 0; i--) {
-        var j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    
-    return shuffled.slice(0, maxCount);
-}
-
-// 构建图片URL
-function buildImageUrl(imageName, type, baseUrl) {
-    var path = '';
-    if (type === 'pc') {
-        path = '/images/pc/' + imageName;
-    } else if (type === 'pe') {
-        path = '/images/pe/' + imageName;
-    } else {
-        return null;
-    }
-    
-    return baseUrl + path;
-}
-
-// 获取基础URL
-function getBaseUrl(requestUrl) {
-    try {
-        var url = new URL(requestUrl);
-        return url.origin;
-    } catch (e) {
-        return 'https://img-pic-api.072168.xyz';
-    }
-}
-
+/**
+ * 处理 API 请求
+ * @param {Request} request - 请求对象
+ * @returns {Promise<Response>} 响应对象
+ */
 async function handleRequest(request) {
+    // 1. 预检请求处理
+    if (request.method === 'OPTIONS') {
+        return new Response(null, {
+            status: 200,
+            headers: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, User-Agent, Accept',
+                'Access-Control-Max-Age': '86400',
+                'Content-Length': '0'
+            }
+        });
+    }
+
+    // 2. 请求方法检查
+    if (request.method !== 'GET' && request.method !== 'POST') {
+        return new Response('Method Not Allowed', {
+            status: 405,
+            headers: { 'Allow': 'GET, POST, OPTIONS' }
+        });
+    }
+
     try {
-        // 处理 CORS 预检请求
-        if (request.method === 'OPTIONS') {
-            return new Response(null, {
-                status: 200,
-                headers: {
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                    'Access-Control-Allow-Headers': 'Content-Type, User-Agent',
-                    'Access-Control-Max-Age': '86400',
-                }
-            });
-        }
+        const url = new URL(request.url);
+        const imgType = (url.searchParams.get('type') || '').toLowerCase().trim();
+        const format = (url.searchParams.get('format') || 'json').toLowerCase().trim();
+        const countParam = url.searchParams.get('count');
+        const returnMode = (url.searchParams.get('return') || 'json').toLowerCase().trim();
+
+        const baseUrl = getBaseUrl(request);
         
-        var url = new URL(request.url);
-        var imgType = url.searchParams.get('type');
-        var format = url.searchParams.get('format') || 'json';
-        var count = parseInt(url.searchParams.get('count')) || 1;
-        
-        // 获取基础URL
-        var baseUrl = getBaseUrl(request.url);
-        
-        // 验证count参数
-        if (isNaN(count) || count < 1) {
-            count = 1;
-        }
-        
-        // 限制最大数量
-        var maxAllowedCount = 50;
-        if (count > maxAllowedCount) {
-            count = maxAllowedCount;
-        }
-        
-        // 处理没有type参数的情况
+        // 3. 处理帮助页面（无参数）
         if (!imgType) {
-            var helpText = '🖼️ 随机图片展示器 API (EdgeOne Pages)\n\n';
-            helpText += '使用方法:\n';
-            helpText += '• ?type=pc - 获取横屏随机图片\n';
-            helpText += '• ?type=pe - 获取竖屏随机图片\n';
-            helpText += '• ?type=ua - 根据设备类型自动选择图片\n';
-            helpText += '\n可选参数:\n';
-            helpText += '• ?format=text - 以文本格式返回URL（每行一个）\n';
-            helpText += '• ?count=N - 返回N张图片（1-50）\n';
-            helpText += '• ?return=json - 返回JSON格式（默认）\n';
-            helpText += '• ?return=redirect - 重定向到单张图片\n';
-            helpText += '\n示例:\n';
-            helpText += '• /api/?type=ua\n';
-            helpText += '• /api/?type=pc&format=text&count=4\n';
-            helpText += '• /api/?type=pe&count=3\n';
-            
+            const helpText = `🖼️ 随机图片展示器 API (EdgeOne Pages)
+
+用法说明:
+• ?type=pc - 获取横屏随机图片
+• ?type=pe - 获取竖屏随机图片  
+• ?type=ua - 根据设备类型自动选择图片
+
+参数选项:
+• ?count=N     - 返回 N 张图片 (1-100，默认: 1)
+• ?format=json - JSON 格式返回 (默认)
+• ?format=text - 文本格式返回 URL
+• ?return=redirect - 直接重定向到单张图片 (仅 count=1 有效)
+
+示例:
+• /api/?type=ua
+• /api/?type=pc&count=3
+• /api/?type=pe&format=text&count=5
+• /api/?type=pc&return=redirect
+
+统计信息:
+• 横屏图片: ${IMAGES.pc.length} 张
+• 竖屏图片: ${IMAGES.pe.length} 张
+• 当前域名: ${baseUrl}
+• 时间: ${new Date().toISOString()}`;
+
             return new Response(helpText, {
                 status: 200,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'no-cache'
                 }
             });
         }
-        
-        // 确定设备类型
-        var deviceType = imgType;
+
+        // 4. 验证并解析参数
+        let count = 1;
+        if (countParam) {
+            const parsed = parseInt(countParam, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 100) {
+                count = parsed;
+            }
+        }
+
+        // 5. 确定设备类型
+        let deviceType = imgType;
         if (imgType === 'ua') {
-            var userAgent = request.headers.get('User-Agent') || '';
+            const userAgent = request.headers.get('User-Agent') || '';
             deviceType = isMobileDevice(userAgent) ? 'pe' : 'pc';
         }
-        
-        // 选择图片列表
-        var imageList = deviceType === 'pc' ? pcImages : peImages;
-        
-        // 获取随机图片
-        var selectedImages = getRandomImages(imageList, count);
-        
+
+        if (deviceType !== 'pc' && deviceType !== 'pe') {
+            return new Response('Invalid type. Use: pc, pe, or ua', {
+                status: 400,
+                headers: { 'Content-Type': 'text/plain' }
+            });
+        }
+
+        // 6. 获取图片列表和随机图片
+        const imageList = IMAGES[deviceType];
+        const selectedImages = getRandomItems(imageList, count);
+
         if (selectedImages.length === 0) {
-            return new Response('没有找到图片', {
-                status: 404,
+            return new Response('No images available', { status: 404 });
+        }
+
+        // 7. 构建响应
+        const imageUrls = selectedImages.map(name => 
+            buildImageUrl(name, deviceType, baseUrl)
+        ).filter(Boolean);
+
+        // 8. 重定向模式（仅支持单张）
+        if (returnMode === 'redirect' && count === 1 && imageUrls[0]) {
+            return new Response(null, {
+                status: 302,
                 headers: {
-                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Location': imageUrls[0],
+                    'Cache-Control': 'no-cache, no-store, must-revalidate',
                     'Access-Control-Allow-Origin': '*'
                 }
             });
         }
-        
-        // 构建图片URL数组
-        var imageUrls = selectedImages.map(function(image) {
-            return buildImageUrl(image, deviceType, baseUrl);
-        });
-        
-        // 文本格式返回
+
+        // 9. 文本格式
         if (format === 'text' || format === 'url' || format === 'txt') {
-            var textResponse = imageUrls.join('\n');
-            
-            return new Response(textResponse, {
+            const text = imageUrls.join('\n');
+            return new Response(text, {
                 status: 200,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0',
-                    'Access-Control-Allow-Origin': '*'
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'no-cache'
                 }
             });
         }
-        
-        // 默认返回JSON格式
-        var jsonResponse = {
+
+        // 10. JSON 格式（默认）
+        const jsonResponse = {
             success: true,
             code: 200,
-            message: '获取成功',
-            count: selectedImages.length,
+            message: 'Success',
+            count: imageUrls.length,
             type: deviceType,
             total_available: imageList.length,
             timestamp: Date.now(),
-            api_version: '1.0',
-            images: imageUrls.map(function(url, index) {
-                return {
-                    url: url,
-                    filename: selectedImages[index],
-                    id: index + 1
-                };
-            })
+            api_version: '2.0',
+            images: imageUrls.map((url, index) => ({
+                id: index + 1,
+                url: url,
+                filename: selectedImages[index]
+            }))
         };
-        
+
         return new Response(JSON.stringify(jsonResponse, null, 2), {
             status: 200,
             headers: {
                 'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*',
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
                 'Pragma': 'no-cache',
-                'Expires': '0',
-                'Access-Control-Allow-Origin': '*'
+                'Expires': '0'
             }
         });
-        
+
     } catch (error) {
-        var errorDetails = '❌ 内部错误\n\n';
-        errorDetails += '错误消息: ' + error.message + '\n';
-        errorDetails += '请求地址: ' + request.url + '\n';
-        errorDetails += '时间戳: ' + new Date().toISOString();
-        
-        return new Response(errorDetails, {
+        // 11. 错误处理
+        console.error('API Error:', error);
+
+        const errorResponse = {
+            success: false,
+            code: 500,
+            message: 'Internal Server Error',
+            error: error.message,
+            timestamp: Date.now()
+        };
+
+        return new Response(JSON.stringify(errorResponse), {
             status: 500,
             headers: {
-                'Content-Type': 'text/plain; charset=utf-8',
+                'Content-Type': 'application/json; charset=utf-8',
                 'Access-Control-Allow-Origin': '*'
             }
         });
