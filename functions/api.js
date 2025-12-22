@@ -6,39 +6,73 @@ export function onRequest(context) {
 // 检测是否为移动设备
 function isMobileDevice(userAgent) {
     if (!userAgent) return false;
-    var mobileKeywords = [
-        'Mobile', 'Android', 'iPhone', 'iPad', 'iPod', 'BlackBerry',
-        'Windows Phone', 'Opera Mini', 'IEMobile', 'Mobile Safari',
-        'webOS', 'Kindle', 'Silk', 'Fennec', 'Maemo', 'Tablet'
-    ];
     var lowerUserAgent = userAgent.toLowerCase();
-    
-    // 检查移动设备关键词
-    for (var i = 0; i < mobileKeywords.length; i++) {
-        if (lowerUserAgent.includes(mobileKeywords[i].toLowerCase())) {
-            return true;
-        }
-    }
-    
-    // 检查移动设备正则表达式
-    var mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
-    return mobileRegex.test(userAgent);
+    var mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i;
+    return mobileRegex.test(lowerUserAgent);
 }
 
-// 横屏图片列表 (PC)
+// 精简的横屏图片列表 (PC)
 var pcImages = [
-    // ... (保持原有的pcImages数组不变)
+    "084e488e57a0ec6d5cc3ed0bd555b464108550804.webp",
+    "22833647_p0.webp",
+    "29532157_p0.webp",
+    "47402965_p0.webp",
+    "50619407_p0.webp",
+    "53031871_p0_scale.webp",
+    "54328446_p0.webp",
+    "56471449_p0.webp",
+    "56733316_p0.webp",
+    "61331263_p0.webp",
+    "61424301_p0.webp",
+    "61749296_p0.webp",
+    "62673771_p0.webp"
 ];
 
-// 竖屏图片列表 (PE)
+// 精简的竖屏图片列表 (PE)
 var peImages = [
-    // ... (保持原有的peImages数组不变)
+    "100033979_p0_scale.webp",
+    "100605558_p0.webp",
+    "101428152_p0.webp",
+    "101553400_p0.webp",
+    "101842454_p0.webp",
+    "102902118_p0.webp",
+    "103144864_p0.webp",
+    "103660589_p0.webp",
+    "103975060_p0_scale.webp",
+    "104111187_p0.webp",
+    "106637640_p0.webp",
+    "107637438_p0.webp",
+    "107775488_p0.webp"
 ];
+
+// 检查数组是否为空
+function validateImageArrays() {
+    if (!pcImages || pcImages.length === 0) {
+        console.error("pcImages数组为空或未定义");
+        return false;
+    }
+    if (!peImages || peImages.length === 0) {
+        console.error("peImages数组为空或未定义");
+        return false;
+    }
+    return true;
+}
+
+// 从列表中随机选择单张图片
+function getRandomImage(images) {
+    if (!images || images.length === 0) {
+        console.error("getRandomImage: 图片列表为空");
+        return null;
+    }
+    var randomIndex = Math.floor(Math.random() * images.length);
+    return images[randomIndex];
+}
 
 // 从列表中随机选择多张图片（不重复）
 function getRandomImages(images, count) {
     if (!images || images.length === 0) {
-        throw new Error('图片列表为空');
+        console.error("getRandomImages: 图片列表为空");
+        return [];
     }
     
     // 如果请求数量大于可用数量，则只返回最大可用数量
@@ -47,12 +81,10 @@ function getRandomImages(images, count) {
     // 复制数组以避免修改原数组
     var shuffled = [...images];
     
-    // Fisher-Yates洗牌算法
+    // 随机打乱数组
     for (var i = shuffled.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1));
-        var temp = shuffled[i];
-        shuffled[i] = shuffled[j];
-        shuffled[j] = temp;
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     
     // 返回前maxCount个元素
@@ -69,66 +101,51 @@ function buildImageUrl(imageName, type) {
     return null;
 }
 
-// 处理设备类型检测
-function determineImageType(request, imgType) {
-    if (imgType === 'ua') {
-        var userAgent = request.headers.get('User-Agent') || '';
-        return isMobileDevice(userAgent) ? 'pe' : 'pc';
-    }
-    return imgType; // 直接返回pc或pe
-}
-
 async function handleRequest(request) {
-    // 处理 CORS 预检请求
-    if (request.method === 'OPTIONS') {
-        return new Response(null, {
-            status: 200,
-            headers: {
-                'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Methods': 'GET, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, User-Agent',
-                'Access-Control-Max-Age': '86400',
-            }
-        });
-    }
-    
     try {
+        // 处理 CORS 预检请求
+        if (request.method === 'OPTIONS') {
+            return new Response(null, {
+                status: 200,
+                headers: {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+                    'Access-Control-Allow-Headers': 'Content-Type, User-Agent',
+                    'Access-Control-Max-Age': '86400',
+                }
+            });
+        }
+        
         var url = new URL(request.url);
         var imgType = url.searchParams.get('type');
         var format = url.searchParams.get('format') || 'json';
         var count = parseInt(url.searchParams.get('count')) || 1;
-        var returnType = url.searchParams.get('return') || 'json'; // 新增return参数支持
         
-        // 验证count参数
-        if (isNaN(count) || count < 1) {
-            count = 1;
+        // 验证图片数组
+        if (!validateImageArrays()) {
+            return new Response('❌ 图片列表初始化失败，请检查代码', {
+                status: 500,
+                headers: {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            });
         }
         
-        // 限制最大数量以避免性能问题
-        var maxAllowedCount = 20;
-        if (count > maxAllowedCount) {
-            count = maxAllowedCount;
-        }
-        
-        // 处理没有type参数的情况
+        // 如果没有type参数，显示帮助
         if (!imgType) {
-            var helpText = '🖼️ 随机图片展示器 (EdgeOne API)\n\n';
+            var helpText = '🖼️ 随机图片展示器 API\n\n';
             helpText += '使用方法:\n';
             helpText += '• ?type=pc - 获取横屏随机图片\n';
             helpText += '• ?type=pe - 获取竖屏随机图片\n';
             helpText += '• ?type=ua - 根据设备类型自动选择图片\n';
             helpText += '\n可选参数:\n';
             helpText += '• ?format=text - 以文本格式返回URL（每行一个）\n';
-            helpText += '• ?count=N - 返回N张图片（1-20）\n';
-            helpText += '• ?return=json - 返回JSON格式（默认）\n';
-            helpText += '• ?return=redirect - 重定向到单张图片（count=1时有效）\n';
+            helpText += '• ?count=N - 返回N张图片（1-10）\n';
             helpText += '\n示例:\n';
-            helpText += '• /api/?type=ua - 自动设备检测，返回JSON\n';
-            helpText += '• /api/?type=pc&format=text&count=4 - 4张横屏图片，文本格式\n';
-            helpText += '• /api/?type=pe&count=3 - 3张竖屏图片，JSON格式\n';
-            helpText += '\n当前项目结构:\n';
-            helpText += '• 横屏图片: /images/pc/\n';
-            helpText += '• 竖屏图片: /images/pe/\n';
+            helpText += '• /api/?type=ua\n';
+            helpText += '• /api/?type=pc&format=text&count=4\n';
+            helpText += '\n图片统计:\n';
             helpText += '• 横屏图片数量: ' + pcImages.length + '\n';
             helpText += '• 竖屏图片数量: ' + peImages.length + '\n';
             
@@ -141,60 +158,61 @@ async function handleRequest(request) {
             });
         }
         
-        // 确定要使用的图片列表
-        var finalImageType = determineImageType(request, imgType);
-        var imageList = finalImageType === 'pc' ? pcImages : peImages;
+        // 确定设备类型
+        var deviceType = imgType;
+        if (imgType === 'ua') {
+            var userAgent = request.headers.get('User-Agent') || '';
+            deviceType = isMobileDevice(userAgent) ? 'pe' : 'pc';
+        }
         
-        // 获取随机图片
-        var selectedImages = getRandomImages(imageList, count);
+        // 选择图片列表
+        var imageList = deviceType === 'pc' ? pcImages : peImages;
         
-        // 如果是单张图片且请求重定向
-        if (count === 1 && (returnType === 'redirect' || format === 'redirect')) {
-            var randomImage = selectedImages[0];
-            var imageUrl = buildImageUrl(randomImage, finalImageType);
-            
-            return new Response(null, {
-                status: 302,
-                headers: {
-                    'Location': imageUrl,
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0',
-                    'Access-Control-Allow-Origin': '*'
-                }
-            });
+        // 验证count参数
+        count = Math.max(1, Math.min(10, count));
+        
+        // 获取图片
+        var selectedImages;
+        if (count === 1) {
+            var singleImage = getRandomImage(imageList);
+            if (!singleImage) {
+                throw new Error('获取单张图片失败');
+            }
+            selectedImages = [singleImage];
+        } else {
+            selectedImages = getRandomImages(imageList, count);
+            if (selectedImages.length === 0) {
+                throw new Error('获取多张图片失败');
+            }
         }
         
         // 构建图片URL数组
         var imageUrls = selectedImages.map(function(image) {
-            return buildImageUrl(image, finalImageType);
+            return buildImageUrl(image, deviceType);
         });
         
         // 根据format参数返回不同格式
-        if (format === 'text' || format === 'url') {
+        if (format === 'text' || format === 'txt') {
+            // 文本格式：每行一个URL
             var textResponse = imageUrls.join('\n');
-            
             return new Response(textResponse, {
                 status: 200,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0',
+                    'Cache-Control': 'no-cache',
                     'Access-Control-Allow-Origin': '*'
                 }
             });
-        } else {
-            // 默认返回JSON格式
+        } else if (format === 'json') {
+            // JSON格式（默认）
             var jsonResponse = {
                 success: true,
                 code: 200,
                 message: '获取成功',
                 count: selectedImages.length,
-                type: finalImageType,
+                type: deviceType,
                 total_available: imageList.length,
                 timestamp: Date.now(),
-                api_version: '1.0',
                 images: imageUrls.map(function(url, index) {
                     return {
                         url: url,
@@ -208,9 +226,35 @@ async function handleRequest(request) {
                 status: 200,
                 headers: {
                     'Content-Type': 'application/json; charset=utf-8',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0',
+                    'Cache-Control': 'no-cache',
+                    'Access-Control-Allow-Origin': '*'
+                }
+            });
+        } else if (format === 'redirect') {
+            // 重定向模式（仅当count=1时有效）
+            if (count === 1) {
+                return new Response(null, {
+                    status: 302,
+                    headers: {
+                        'Location': imageUrls[0],
+                        'Cache-Control': 'no-cache',
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                });
+            } else {
+                return new Response('重定向模式仅支持单张图片（count=1）', {
+                    status: 400,
+                    headers: {
+                        'Content-Type': 'text/plain; charset=utf-8',
+                        'Access-Control-Allow-Origin': '*'
+                    }
+                });
+            }
+        } else {
+            return new Response('不支持的format参数。可用值：json, text, redirect', {
+                status: 400,
+                headers: {
+                    'Content-Type': 'text/plain; charset=utf-8',
                     'Access-Control-Allow-Origin': '*'
                 }
             });
@@ -219,9 +263,13 @@ async function handleRequest(request) {
     } catch (error) {
         var errorDetails = '❌ 内部错误\n\n';
         errorDetails += '错误消息: ' + error.message + '\n';
-        errorDetails += '错误堆栈: ' + error.stack + '\n';
+        if (error.stack) {
+            errorDetails += '错误堆栈: ' + error.stack + '\n';
+        }
         errorDetails += '请求地址: ' + request.url + '\n';
-        errorDetails += '时间戳: ' + new Date().toISOString();
+        errorDetails += '时间戳: ' + new Date().toISOString() + '\n';
+        errorDetails += '图片数组状态: pc=' + (pcImages ? pcImages.length : 0) + 
+                       ', pe=' + (peImages ? peImages.length : 0);
         
         return new Response(errorDetails, {
             status: 500,
