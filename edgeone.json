@@ -38,17 +38,17 @@
     "redirects": [
         {
             "source": "/pc",
-            "destination": "/api/?type=pc&return=redirect",
+            "destination": "/api/?type=pc",
             "statusCode": 302
         },
         {
             "source": "/pe",
-            "destination": "/api/?type=pe&return=redirect",
+            "destination": "/api/?type=pe",
             "statusCode": 302
         },
         {
             "source": "/ua",
-            "destination": "/api/?type=ua&return=redirect",
+            "destination": "/api/?type=ua",
             "statusCode": 302
         }
     ]
