@@ -1,141 +1,1099 @@
-
 // EdgeOne Pages Function export
 export function onRequest(context) {
     return handleRequest(context.request);
 }
 
 /**
- * 检测是否为移动设备（增强版）
+ * 检测是否为移动设备（优化版本）
+ * @param {string} userAgent - 用户代理字符串
+ * @returns {boolean} 是否为移动设备
  */
 function isMobileDevice(userAgent) {
     if (!userAgent || typeof userAgent !== 'string') return false;
 
-    const lowerUA = userAgent.toLowerCase();
-    
-    // 优先关键词匹配（更快）
     const mobileKeywords = [
-        'mobile', 'android', 'iphone', 'ipad', 'ipod', 'blackberry',
-        'windows phone', 'opera mini', 'iemobile', 'mobile safari',
-        'webos', 'kindle', 'silk', 'fennec', 'maemo', 'tablet'
+        'Mobile', 'Android', 'iPhone', 'iPad', 'iPod', 'BlackBerry',
+        'Windows Phone', 'Opera Mini', 'IEMobile', 'Mobile Safari',
+        'webOS', 'Kindle', 'Silk', 'Fennec', 'Maemo', 'Tablet'
     ];
 
-    for (let keyword of mobileKeywords) {
-        if (lowerUA.includes(keyword)) {
+    const lowerUA = userAgent.toLowerCase();
+
+    // 快速关键词匹配
+    for (let i = 0; i < mobileKeywords.length; i++) {
+        if (lowerUA.includes(mobileKeywords[i].toLowerCase())) {
             return true;
         }
     }
 
-    // 正则兜底
+    // 正则兜底（性能稍低但覆盖更全）
     const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
     return mobileRegex.test(userAgent);
 }
 
 /**
- * 真正随机的索引生成（解决缓存和随机性问题）
+ * 安全地获取随机索引（使用加密安全随机数）
+ * @param {number} max - 最大值（不包含）
+ * @returns {number} 随机索引
  */
 function getRandomIndex(max) {
     if (max <= 0) return 0;
     if (max === 1) return 0;
 
-    // 方法1: 使用 crypto（推荐）
-    try {
-        const array = new Uint32Array(1);
-        crypto.getRandomValues(array);
-        return array[0] % max;
-    } catch (e) {
-        // 方法2: 使用时间戳 + 请求指纹（备用）
-        const now = Date.now();
-        const random = Math.sin(now) * 10000;
-        return Math.floor(Math.abs(random)) % max;
-    }
+    // 使用 EdgeOne 支持的 crypto API 获取更安全的随机数
+    const array = new Uint32Array(1);
+    crypto.getRandomValues(array);
+    return array[0] % max;
 }
 
 /**
- * 获取请求指纹（用于增加随机性）
+ * 从数组中随机选择一个元素
+ * @param {Array} arr - 目标数组
+ * @returns {any|null} 随机元素或 null
  */
-function getRequestFingerprint(request) {
-    const url = new URL(request.url);
-    const ip = request.headers.get('CF-Connecting-IP') || 
-               request.headers.get('X-Forwarded-For') || 
-               'unknown';
-    const ua = request.headers.get('User-Agent') || '';
-    return `${ip}-${ua.slice(0, 50)}-${Date.now()}`;
-}
-
-/**
- * 从数组中随机选择元素（带强制刷新）
- */
-function getRandomItem(arr, request) {
+function getRandomItem(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return null;
-    
-    // 使用请求指纹增加随机性
-    const fingerprint = getRequestFingerprint(request);
-    const seed = fingerprint.length + Date.now();
-    
-    // 多种随机源混合
-    let index = getRandomIndex(arr.length);
-    
-    // 如果有多个选择，确保不总是返回同一个
-    if (arr.length > 1) {
-        // 使用 fingerprint 的哈希来扰动索引
-        let hash = 0;
-        for (let i = 0; i < fingerprint.length; i++) {
-            hash = (hash << 5) - hash + fingerprint.charCodeAt(i);
-            hash = hash & hash; // 转换为32位整数
-        }
-        const offset = Math.abs(hash) % arr.length;
-        index = (index + offset) % arr.length;
-    }
-    
+    const index = getRandomIndex(arr.length);
     return arr[index];
 }
 
 /**
- * 构建带缓存破坏参数的 URL
+ * 从数组中随机选择多个不重复元素（洗牌算法）
+ * @param {Array} arr - 目标数组
+ * @param {number} count - 数量
+ * @returns {Array} 随机元素数组
  */
-function buildImageUrl(filename, type, baseUrl) {
-    if (!filename || !type || !baseUrl) return null;
+function getRandomItems(arr, count) {
+    if (!Array.isArray(arr) || arr.length === 0) return [];
     
-    const path = type === 'pc' ? `/images/pc/${filename}` : `/images/pe/${filename}`;
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substr(2, 9);
+    const limit = Math.min(count, arr.length, 100); // 限制最大数量
+    const result = [];
+    const copy = [...arr];
     
-    // 添加缓存破坏参数
-    return `${baseUrl}${path}?v=${timestamp}&r=${random}`;
+    // Fisher-Yates 洗牌算法（前 n 个）
+    for (let i = 0; i < limit; i++) {
+        const j = i + getRandomIndex(copy.length - i);
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+        result.push(copy[i]);
+    }
+    
+    return result;
 }
 
 /**
- * 获取基础 URL
+ * 构建图片 URL
+ * @param {string} filename - 文件名
+ * @param {string} type - 类型 (pc/pe)
+ * @param {string} baseUrl - 基础域名
+ * @returns {string|null} 完整 URL
+ */
+function buildImageUrl(filename, type, baseUrl) {
+    if (!filename || !type || !baseUrl) return null;
+
+    let path;
+    if (type === 'pc') {
+        path = '/images/pc/' + filename;
+    } else if (type === 'pe') {
+        path = '/images/pe/' + filename;
+    } else {
+        return null;
+    }
+    
+    return baseUrl + path;
+}
+
+/**
+ * 获取请求的基础 URL
+ * @param {Request} request - 请求对象
+ * @returns {string} 基础 URL
  */
 function getBaseUrl(request) {
     try {
         const url = new URL(request.url);
         return url.origin;
     } catch (e) {
-        return 'https://your-domain.pages.dev'; // 替换为你的实际域名
+        // EdgeOne Pages 默认域名格式
+        return 'https://your-domain.pages.dev'; // 请替换为你的实际域名
     }
 }
 
-// 图片列表（你的完整列表）
+// 图片列表（保持原数据不变）
 const IMAGES = {
-    pc: [
-        // 你的所有 PC 图片...
-        "084e488e57a0ec6d5cc3ed0bd555b464108550804.webp",
-        "100234583_p0.webp",
-        // ... 保持你的完整列表
-        "nachoneko-8276179.webp"
-    ],
-    pe: [
-        // 你的所有 PE 图片...
-        "100033979_p0_scale.webp",
-        "100605558_p0.webp",
-        // ... 保持你的完整列表
-        "GZmKHXdaMAAIUbM_scale.webp"
-    ]
+  pc: [
+  "084e488e57a0ec6d5cc3ed0bd555b464108550804.webp",
+  "100234583_p0.webp",
+  "100298143_p0.webp",
+  "100846533_p0.webp",
+  "100917024_p0.webp",
+  "100988999_p0.webp",
+  "101033524_p0.webp",
+  "101100763_p0.webp",
+  "101274284_p0.webp",
+  "101336707_p0.webp",
+  "101504373_p0.webp",
+  "101510435_p0.webp",
+  "101574326_p0.webp",
+  "101660266_p0.webp",
+  "101770180_p0.webp",
+  "101999235_p0.webp",
+  "102038253_p0.webp",
+  "102178611_p0.webp",
+  "102185845_p0.webp",
+  "102516083_p0.webp",
+  "102548617_p0.webp",
+  "102977309_p0.webp",
+  "102978011_p0.webp",
+  "103143853_p0.webp",
+  "103415639_p0.webp",
+  "103424182_p0.webp",
+  "103449101_p0_scale.webp",
+  "103504355_p0.webp",
+  "103589290_p0.webp",
+  "103698867_p1.webp",
+  "103735525_p0.webp",
+  "103908162_p0.webp",
+  "104308072_p0.webp",
+  "104383987_p0.webp",
+  "104430281_p0.webp",
+  "104514442_p0.webp",
+  "104569091_p0.webp",
+  "104573348_p0.webp",
+  "104678109_p0.webp",
+  "105516905_p0.webp",
+  "105656217_p0.webp",
+  "105673359_p0_crop.webp",
+  "105673359_p0_crop_2.webp",
+  "106150131_p0.webp",
+  "106609518_p0.webp",
+  "107112021_p0.webp",
+  "107875694_p0.webp",
+  "108415394_p0.webp",
+  "108489283_p0.webp",
+  "108741384_p0.webp",
+  "109034541_p0.webp",
+  "109035928_p0_scale.webp",
+  "109701684_p0.webp",
+  "110847880_p0.webp",
+  "111063093_p0.webp",
+  "111303455_p0.webp",
+  "112153191_p0.webp",
+  "112201194_p0_scale.webp",
+  "112201194_p0_scale_2.webp",
+  "112603426_p0.webp",
+  "112833452_p0.webp",
+  "113154565_p0_scale.webp",
+  "113347392_p0.webp",
+  "113499067_p0.webp",
+  "113816755_p0_scale.webp",
+  "113950140_p0.webp",
+  "114011526_p0.webp",
+  "114305978_p0.webp",
+  "114575867_p0.webp",
+  "114596932_p0.webp",
+  "114810789_p0.webp",
+  "115221030_p0.webp",
+  "115768217_p0.webp",
+  "115836288_p11.webp",
+  "116217474_p0.webp",
+  "116763500_p0.webp",
+  "116763500_p0_2.webp",
+  "116826839_p0.webp",
+  "117157874_p0.webp",
+  "117329058_p0.webp",
+  "117721905_p0_scale.webp",
+  "117732274_p0.webp",
+  "117930858_p0_scale.webp",
+  "118303835_p0_scale.webp",
+  "118504272_p0_scale.webp",
+  "119352184_p0.webp",
+  "119363318_p0.webp",
+  "119409112_p0.webp",
+  "119409112_p0_2.webp",
+  "119584479_p0.webp",
+  "119584630_p0.webp",
+  "119658407_p0_scale.webp",
+  "119681348_p0.webp",
+  "119683453_p0.webp",
+  "119718878_p0.webp",
+  "119745531_p0.webp",
+  "119812287_p0.webp",
+  "119817931_p0.webp",
+  "119818087_p0.webp",
+  "119847054_p0_scale.webp",
+  "119847258_p0.webp",
+  "119929533_p0_scale.webp",
+  "119987626_p0.webp",
+  "120151590_p0_scale.webp",
+  "120231546_p0.webp",
+  "120269913_p0.webp",
+  "120273520_p0.webp",
+  "120415107_p0.webp",
+  "120437949_p0.webp",
+  "120447547_p0.webp",
+  "120505548_p0.webp",
+  "120585463_p0.webp",
+  "120590541_p0.webp",
+  "120664009_p0.webp",
+  "120678598_p0.webp",
+  "120678604_p0.webp",
+  "120731402_p0.webp",
+  "120755818_p0.webp",
+  "120940509_p0.webp",
+  "121061214_p0.webp",
+  "121122321_p0.webp",
+  "121182699_p0.webp",
+  "121252702_p0.webp",
+  "121278469_p0.webp",
+  "121523900_p0_scale.webp",
+  "121672286_p0.webp",
+  "121782789_p0.webp",
+  "121814056_p0.webp",
+  "121964788_p0.webp",
+  "121965265_p0.webp",
+  "122011462_p0_scale.webp",
+  "122018645_p0.webp",
+  "122134480_p0.webp",
+  "122208322_p0.webp",
+  "122295004_p0.webp",
+  "122463653_p0.webp",
+  "122513935_p0.webp",
+  "122667934_p0.webp",
+  "122709476_p0.webp",
+  "122857380_p0.webp",
+  "122971526_p0.webp",
+  "123054190_p0.webp",
+  "123084497_p0.webp",
+  "123368385_p0_scale.webp",
+  "123595953_p0.webp",
+  "123655095_p0.webp",
+  "123783069_p0.webp",
+  "123889602_p0.webp",
+  "124009013_p0.webp",
+  "124077886_p0.webp",
+  "124086849_p0_scale.webp",
+  "124183536_p0.webp",
+  "124416192_p0.webp",
+  "124449221_p0.webp",
+  "124475945_p0.webp",
+  "124488549_p0.webp",
+  "124564093_p0.webp",
+  "124600825_p0.webp",
+  "124644672_p0.webp",
+  "124644672_p0_2.webp",
+  "124654055_p0.webp",
+  "124654477_p0_scale.webp",
+  "124680307_p0.webp",
+  "124691047_p0.webp",
+  "124886876_p0.webp",
+  "124927106_p0.webp",
+  "124928964_p0.webp",
+  "124929021_p0.webp",
+  "124942926_p0.webp",
+  "125097287_p0.webp",
+  "125133827_p0.webp",
+  "125160058_p0_scale.webp",
+  "125268471_p0.webp",
+  "125309715_p0.webp",
+  "125330000_p0_scale.webp",
+  "125417788_p0.webp",
+  "125642552_p0_scale.webp",
+  "125821283_p0.webp",
+  "125850574_p0.webp",
+  "126018611_p0.webp",
+  "126080630_p0.webp",
+  "126110164_p0.webp",
+  "126185064_p0.webp",
+  "126197877_p0_scale.webp",
+  "126200196_p0.webp",
+  "126215847_p0.webp",
+  "126239851_p0.webp",
+  "126275372_p0.webp",
+  "126303242_p0_scale.webp",
+  "126363279_p0.webp",
+  "126433059_p0_scale.webp",
+  "126440227_p0.webp",
+  "126471075_p0.webp",
+  "126530754_p0.webp",
+  "126607028_p0_scale.webp",
+  "126625846_p0.webp",
+  "126654752_p0.webp",
+  "126666123_p0.webp",
+  "126684561_p0.webp",
+  "126730692_p0_2.0x.webp",
+  "126745439_p0.webp",
+  "126786094_p0.webp",
+  "126796443_p0.webp",
+  "126823999_p0.webp",
+  "126834822_p0.webp",
+  "126879886_p0_scale.webp",
+  "126891285_p0.webp",
+  "127088081_p0.webp",
+  "127122374_p0.webp",
+  "127181064_p0.webp",
+  "127209011_p0.webp",
+  "127432705_p0.webp",
+  "127455205_p0.webp",
+  "127468246_p0.webp",
+  "127516816_p0.webp",
+  "127667954_p0.webp",
+  "127696589_p0_scale.webp",
+  "127860602_p0.webp",
+  "128107479_p0.webp",
+  "128159890_p0.webp",
+  "128186688_p0_scale.webp",
+  "128235450_p0.webp",
+  "128421816_p0.webp",
+  "128429691_p0.webp",
+  "128446701_p0.webp",
+  "128500147_p0.webp",
+  "128530894_p0.webp",
+  "128595081_p0.webp",
+  "128802950_p0.webp",
+  "128805855_p0.webp",
+  "128851064_p0_scale.webp",
+  "129134789_p0.webp",
+  "129136079_p0.webp",
+  "129166991_p0.webp",
+  "129206493_p0.webp",
+  "129338117_p0.webp",
+  "129338117_p0_2.webp",
+  "129414391_p0.webp",
+  "129481547_p0.webp",
+  "129555257_p0.webp",
+  "129563571_p0_scale.webp",
+  "129598093_p0.webp",
+  "129644254_p0.webp",
+  "129680833_p0.webp",
+  "129692883_p0.webp",
+  "129710016_p0.webp",
+  "129725659_p0.webp",
+  "129812709_p0.webp",
+  "129960660_p0.webp",
+  "129987543_p0.webp",
+  "130010084_p0.webp",
+  "130015705_p0_scale.webp",
+  "130140018_p0.webp",
+  "130309659_p0.webp",
+  "130389407_p0.webp",
+  "130471028_p0.webp",
+  "130481158_p0.webp",
+  "130785057_p0.webp",
+  "130936425_p0.webp",
+  "131004240_p0.webp",
+  "131098525_p0.webp",
+  "131198169_p0.webp",
+  "131271889_p0.webp",
+  "131602803_p0.webp",
+  "131611263_p0_scale.webp",
+  "131673707_p0.webp",
+  "131747933_p0.webp",
+  "131874913_p0.webp",
+  "131930070_p0.webp",
+  "131930070_p0_2.webp",
+  "131945149_p0_scale.webp",
+  "131968595_p0.webp",
+  "131981278_p0.webp",
+  "132032416_p0.webp",
+  "132102065_p0.webp",
+  "132200831_p0_scale.webp",
+  "132274887_p0.webp",
+  "132274887_p0_2.webp",
+  "132439941_p0.webp",
+  "132493161_p5.webp",
+  "132532325_p0.webp",
+  "132552812_p0.webp",
+  "132808086_p0.webp",
+  "132936331_p0_scale.webp",
+  "132936331_p0_scale_2.webp",
+  "132938930_p0.webp",
+  "133032571_p0.webp",
+  "133074326_p0.webp",
+  "133138882_p0.webp",
+  "133138882_p0_2.webp",
+  "133291685_p0.webp",
+  "133335243_p0.webp",
+  "133360037_p0.webp",
+  "133408782_p0.webp",
+  "133484955_p0.webp",
+  "133486591_p0.webp",
+  "133498103_p0.webp",
+  "133561413_p0.webp",
+  "133589150_p0.webp",
+  "133608163_p0_scale.webp",
+  "133608163_p0_scale_2.webp",
+  "133608996_p0.webp",
+  "133626566_p0.webp",
+  "133649865_p0_scale.webp",
+  "133717809_p0.webp",
+  "133766578_p0.webp",
+  "133812403_p0_scale.webp",
+  "133851144_p0.webp",
+  "133915571_p1.webp",
+  "133932794_p0.webp",
+  "133976438_p0.webp",
+  "134036619_p0.webp",
+  "134197640_p0.webp",
+  "134223637_p0.webp",
+  "134494240_p0.webp",
+  "134520087_p0.webp",
+  "134552521_p0.webp",
+  "134588581_p0.webp",
+  "17a85ae6b4a7ab39dfa3b6845168eb31286932642.webp",
+  "22833647_p0.webp",
+  "29532157_p0.webp",
+  "47402965_p0.webp",
+  "50619407_p0.webp",
+  "515a8977c99ad54a7213efbdc656ba7d44519977.webp",
+  "53031871_p0_scale.webp",
+  "54328446_p0.webp",
+  "545ba08cd8ac33348fd6eec271bdfc9414885946.webp",
+  "56471449_p0.webp",
+  "56733316_p0.webp",
+  "61331263_p0.webp",
+  "61424301_p0.webp",
+  "6143de1ea4b0cc47fb117543e5baad092497952.webp",
+  "61749296_p0.webp",
+  "62673771_p0.webp",
+  "64458014_p0_scale.webp",
+  "64723229_p0.webp",
+  "66595782_p0.webp",
+  "66897076_p0.webp",
+  "67467570_p0_scale.webp",
+  "67785155_p0.webp",
+  "67993516_p0.webp",
+  "68012889_p0.webp",
+  "68315220_p0.webp",
+  "70791127_p0.webp",
+  "72472256_p0.webp",
+  "73497750_p0.webp",
+  "74016100_p0.webp",
+  "74271400_p0.webp",
+  "74743186_p0.webp",
+  "75313170_p0.webp",
+  "75571275_p0.webp",
+  "75634723_p0.webp",
+  "75872296_p0.webp",
+  "75941497_p0.webp",
+  "76371065_p0.webp",
+  "76510306_p0.webp",
+  "77253472_p0.webp",
+  "77734148_p0.webp",
+  "77839764_p0.webp",
+  "77883950_p0.webp",
+  "77992108_p0.webp",
+  "78106859_p0.webp",
+  "78127035_p0.webp",
+  "78166169_p0.webp",
+  "78375860_p0.webp",
+  "78949581_p0.webp",
+  "79008828_p0.webp",
+  "79258428_p0.webp",
+  "79422437_p0.webp",
+  "79989985_p0.webp",
+  "80928620_p0.webp",
+  "80950712_p1.webp",
+  "80981871_p0.webp",
+  "81241050_p0.webp",
+  "81734551_p0.webp",
+  "81786574_p0.webp",
+  "81941687_p0.webp",
+  "82542737_p0.webp",
+  "82738111_p0.webp",
+  "82748814_p0.webp",
+  "82752479_p0.webp",
+  "82910218_p0.webp",
+  "83013415_p0.webp",
+  "83128832_p0.webp",
+  "83514063_p0.webp",
+  "83651130_p0.webp",
+  "83831242_p0.webp",
+  "84179374_p0.webp",
+  "84327200_p0.webp",
+  "84465333_p0.webp",
+  "84571503_p0_fanbox.webp",
+  "86116193_p0.webp",
+  "86286746_p0.webp",
+  "87051062_p0.webp",
+  "87098538_p0.webp",
+  "87141455_p0.webp",
+  "87148517_p0.webp",
+  "87648179_p0.webp",
+  "87730346_p0.webp",
+  "88043187_p0.webp",
+  "88050871_p0.webp",
+  "88334293_p0_fanbox.webp",
+  "88386138_p0.webp",
+  "88450801_p0.webp",
+  "88702454_p0.webp",
+  "89030686_p0.webp",
+  "89164923_p0.webp",
+  "89478080_p1.webp",
+  "89631337_p0.webp",
+  "89684443_p0.webp",
+  "89971374_p0.webp",
+  "90048153_p0.webp",
+  "90574460_p0.webp",
+  "91087868_p0.webp",
+  "91173778_p0.webp",
+  "91189830_p0.webp",
+  "91746041_p0.webp",
+  "91775801_p0.webp",
+  "91837671_p0.webp",
+  "91888925_p1.webp",
+  "92060022_p0.webp",
+  "92314334_p0.webp",
+  "92319448_p0.webp",
+  "92469555_p0.webp",
+  "92784634_p0.webp",
+  "92839677_p0.webp",
+  "92968709_p0.webp",
+  "93139241_p0.webp",
+  "93245755_p0.webp",
+  "93350555_p0.webp",
+  "93610814_p0.webp",
+  "93674438_p0.webp",
+  "93873510_p0.webp",
+  "93878000_p0.webp",
+  "93895188_p0.webp",
+  "93918985_p0.webp",
+  "93943158_p0.webp",
+  "94032065_p0.webp",
+  "94391271_p0.webp",
+  "94391271_p0_2.webp",
+  "94463658_p0.webp",
+  "94647435_p0.webp",
+  "94755985_p0.webp",
+  "94783071_p0.webp",
+  "94992919_p0.webp",
+  "95129017_p0.webp",
+  "96088320_p0.webp",
+  "97093538_p0.webp",
+  "97911998_p0.webp",
+  "98440807_p1.webp",
+  "98470326_p0.webp",
+  "98508138_p0.webp",
+  "98722517_p0.webp",
+  "98753832_p0_scale.webp",
+  "98779883_p0.webp",
+  "98968620_p0.webp",
+  "99269048_p0.webp",
+  "99410552_p0.webp",
+  "99427647_p1.webp",
+  "99508259_p0.webp",
+  "99601033_p0.webp",
+  "99601033_p0_2.webp",
+  "99653563_p0.webp",
+  "99675411_p0.webp",
+  "99705945_p0.webp",
+  "99936723_p0.webp",
+  "cdec7d5debb1f0c9205b0022e61df36f4912162.webp",
+  "E1jm5eyVoAI1rul.webp",
+  "E_u2Wc9VIAk8nSq.webp",
+  "F4S2ZexbQAAJP5I.webp",
+  "FDbQdcTagAAtJ8y.webp",
+  "FDvjvkSaUAEtsXV.webp",
+  "FgXM36uakAA4d9D.webp",
+  "FNkyzwLaMAEdtRv.webp",
+  "FP5jE4YaIAgXPct.webp",
+  "FXSlIv0aAAA3A2g.webp",
+  "Fyf7y09acAAHxyb.webp",
+  "FZEHKANUYAANqq4.webp",
+  "GcBxlioboAEp8ja_scale.webp",
+  "GDYfjhzakAEfdvD.webp",
+  "Gezs8dhaIAAE8iJ_scale.webp",
+  "Gf82r-9aIAEHWeq.webp",
+  "GfUahcbaYAAEaL6_scale.webp",
+  "GfUJhz0bEAA6o8S_scale.webp",
+  "GGr4dUDaIAAmBV-_scale.webp",
+  "GgRzbdYa4AEzTN6.webp",
+  "Gh7fWs6aEAAEe07.webp",
+  "GidqQbtaMAA9NUQ.webp",
+  "GinrS1ibYAEfqWf.webp",
+  "GkJt3gAXEAA_b_J.webp",
+  "GkY5zAyaoAAz2fI.webp",
+  "GlcOqzwbUAAmPDw_scale.webp",
+  "Gl_qXviXoAAemM_.webp",
+  "GMaC5WfbcAAgwis.webp",
+  "GobZBe4XYAANXmq.webp",
+  "GoEN0p1bkAAfg4K.webp",
+  "GoENXOQbwAE4_jZ_scale.webp",
+  "GofcbsoWAAAdoy9_scale.webp",
+  "Gp9CJY-bIAAm4Qu.webp",
+  "GP9GGqYa8AAiK1V_scale.webp",
+  "GQMXF57aYAAm3oq.webp",
+  "Gri6KdHagAAOCza_scale.webp",
+  "GRJqGMGbQAACEqf_scale.webp",
+  "Gru17G2XUAAp8Jb.webp",
+  "GsDNTkraoAARVsD.webp",
+  "GsMVdxpbIAEKaf5.webp",
+  "GSZOBc5XQAA1Hhz.webp",
+  "Gt4dfzMbwAA54mc_scale.webp",
+  "GVVVAtHakAAT70j.webp",
+  "GwDKq_vWkAAT8xp.webp",
+  "GX1QPs3b0AAwp49.webp",
+  "Gx4hsVXW0AAgyzD.webp",
+  "GY_KEWQaMAAlyUo.webp",
+  "GzB4SalbcAAQ4Nj_scale.webp",
+  "GZBNVh1bgAAvAZG_scale.webp",
+  "nachoneko-8276179.webp",
+  "nachoneko-8276179_2.webp"
+],
+
+// 竖屏图片列表 (PE)
+ pe: [
+  "100033979_p0_scale.webp",
+  "100605558_p0.webp",
+  "101428152_p0.webp",
+  "101553400_p0.webp",
+  "101842454_p0.webp",
+  "102902118_p0.webp",
+  "103144864_p0.webp",
+  "103660589_p0.webp",
+  "103975060_p0_scale.webp",
+  "104111187_p0.webp",
+  "106637640_p0.webp",
+  "107637438_p0.webp",
+  "107775488_p0.webp",
+  "108255796_p0.webp",
+  "108926354_p0_scale.webp",
+  "109306068_p0.webp",
+  "109576082_p0.webp",
+  "109887728_p0_scale.webp",
+  "109915862_p0_scale.webp",
+  "110210812_p0.webp",
+  "110470110_p0.webp",
+  "110764401_p0.webp",
+  "111051491_p0.webp",
+  "111342764_p3.webp",
+  "112026768_p0.webp",
+  "112219141_p0.webp",
+  "112264407_p0.webp",
+  "112554440_p0.webp",
+  "112637078_p0.webp",
+  "113024286_p0_scale.webp",
+  "113152921_p0_scale.webp",
+  "113159433_p0.webp",
+  "113159433_p0_2.webp",
+  "113252117_p0.webp",
+  "113276017_p0_scale.webp",
+  "113388986_p0.webp",
+  "113471491_p0.webp",
+  "113767467_p0.webp",
+  "113792991_p0.webp",
+  "114131969_p0.webp",
+  "114932996_p0.webp",
+  "115507119_p0.webp",
+  "115826130_p0.webp",
+  "115991149_p0.webp",
+  "116106518_p0.webp",
+  "116580113_p0.webp",
+  "116730388_p0.webp",
+  "116825218_p0.webp",
+  "116825583_p0.webp",
+  "117001115_p0.webp",
+  "117103126_p0_scale.webp",
+  "117366126_p0.webp",
+  "117603287_p0.webp",
+  "117647327_p0.webp",
+  "117848583_p0.webp",
+  "118215793_p0.webp",
+  "118370815_p0.webp",
+  "118636161_p0.webp",
+  "118799972_p0_scale.webp",
+  "119042627_p0.webp",
+  "119316175_p0.webp",
+  "119406348_p0_scale.webp",
+  "119482135_p0.webp",
+  "119553811_p0_scale.webp",
+  "119611569_p0.webp",
+  "119695120_p0.webp",
+  "119764079_p0.webp",
+  "119847044_p0.webp",
+  "119864362_p0.webp",
+  "119906070_p0.webp",
+  "119927499_p0.webp",
+  "119928604_p0.webp",
+  "119948435_p0.webp",
+  "120031104_p0.webp",
+  "120076392_p0_scale.webp",
+  "120093189_p0_scale.webp",
+  "120180888_p0.webp",
+  "120180888_p0_2.webp",
+  "120269824_p0_scale.webp",
+  "120299042_p0.webp",
+  "120310736_p0.webp",
+  "120337128_p0_scale.webp",
+  "120337132_p0_scale.webp",
+  "120394971_p0.webp",
+  "120402664_p0_scale.webp",
+  "120418655_p0_scale.webp",
+  "120445237_p0_scale.webp",
+  "120492963_p0_scale.webp",
+  "120583485_p0.webp",
+  "120623420_p0_scale.webp",
+  "120669301_p0.webp",
+  "120777220_p0_scale.webp",
+  "120854190_p0_scale.webp",
+  "120882028_p0_scale.webp",
+  "120910319_p0_scale.webp",
+  "121003474_p0.webp",
+  "121043822_p0.webp",
+  "121052035_p0.webp",
+  "121088901_p0_scale.webp",
+  "121190248_p0.webp",
+  "121218333_p0_scale.webp",
+  "121406168_p0.webp",
+  "121451414_p0.webp",
+  "121468797_p0.webp",
+  "121514151_p0._scale.webp",
+  "121535527_p0.webp",
+  "121611191_p0_scale.webp",
+  "121642864_p0_scale.webp",
+  "121649463_p0.webp",
+  "121691783_p0_scale.webp",
+  "121792544_p0.webp",
+  "121807559_p0.webp",
+  "121940766_p0.webp",
+  "121955436_p0_scale.webp",
+  "122046795_p0_scale.webp",
+  "122087406_p0.webp",
+  "122088809_p0.webp",
+  "122110530_p0_scale.webp",
+  "122170088_p0.webp",
+  "122368812_p0_scale.webp",
+  "122407765_p0.webp",
+  "122536264_p0.webp",
+  "122549257_p0_scale.webp",
+  "122600033_p0.webp",
+  "122683906_p0.webp",
+  "122808701_p0_scale.webp",
+  "122829018_p0.webp",
+  "123025283_p0_scale.webp",
+  "123058617_p0.webp",
+  "123213437_p0.webp",
+  "123395413_p0.webp",
+  "123395967_p0.webp",
+  "123395986_p0.webp",
+  "123437858_p0.webp",
+  "123467570_p0.webp",
+  "123496166_p0.webp",
+  "123531883_p0.webp",
+  "123585297_p0_scale.webp",
+  "123705669_p0.webp",
+  "123727256_p0_scale.webp",
+  "123731488_p0_scale.webp",
+  "123789395_p0.webp",
+  "123873391_p0_scale.webp",
+  "123939470_p0_scale.webp",
+  "124086829_p0_scale.webp",
+  "124145199_p0.webp",
+  "124145199_p0_2.webp",
+  "124500627_p0.webp",
+  "124572510_p0.webp",
+  "124671699_p0.webp",
+  "124719914_p0.webp",
+  "124996182_p0.webp",
+  "125015839_p0.webp",
+  "125030531_p0.webp",
+  "125033587_p0_scale.webp",
+  "125139872_p0.webp",
+  "125191782_p0_scale.webp",
+  "125206610_p0.webp",
+  "125209253_p0.webp",
+  "125246498_p0.webp",
+  "125328295_p0.webp",
+  "125435652_p0_scale.webp",
+  "125495513_p0_scale.webp",
+  "125576845_p0_scale.webp",
+  "125578889_p0.webp",
+  "125734155_p0.webp",
+  "125741202_p0.webp",
+  "125754122_p0.webp",
+  "125758324_p1.webp",
+  "125821117_p0.webp",
+  "125821117_p0_2.webp",
+  "125919636_p0.webp",
+  "126119053_p0.webp",
+  "126128300_p0_scale.webp",
+  "126163235_p0_scale.webp",
+  "126214322_p0.webp",
+  "126225810_p0.webp",
+  "126242352_p0.webp",
+  "126307529_p0.webp",
+  "126338805_p0.webp",
+  "126431416_p0.webp",
+  "126475688_p0.webp",
+  "126563812_p0.webp",
+  "126684531_p0.webp",
+  "126824744_p0.webp",
+  "126872003_p0.webp",
+  "126882181_p0.webp",
+  "126935991_p0.webp",
+  "127319766_p0.webp",
+  "127383835_p0.webp",
+  "127395843_p0.webp",
+  "127450864_p0.webp",
+  "127528077_p0.webp",
+  "127618997_p0.webp",
+  "127646999_p0.webp",
+  "127789295_p0.webp",
+  "127931487_p0.webp",
+  "127934447_p0.webp",
+  "128002675_p0_scale.webp",
+  "128002809_p0.webp",
+  "128048041_p0.webp",
+  "128142863_p0.webp",
+  "128327253_p0_scale.webp",
+  "128391873_p0.webp",
+  "128492487_p0.webp",
+  "128533861_p0.webp",
+  "128566112_p0.webp",
+  "128709218_p0_scale.webp",
+  "128820381_p0.webp",
+  "128860445_p0_scale.webp",
+  "128940025_p0.webp",
+  "128996852_p0_scale.webp",
+  "128996906_p0_scale.webp",
+  "129080638_p0.webp",
+  "129123844_p0.webp",
+  "129159918_p0_scale.webp",
+  "129222988_p0.webp",
+  "129313479_p0.webp",
+  "129371697_p0.webp",
+  "129375403_p0_scale.webp",
+  "129585605_p0.webp",
+  "129616831_p0.webp",
+  "129722886_p1.webp",
+  "129778509_p0.webp",
+  "129811625_p0.webp",
+  "129871828_p0.webp",
+  "129898501_p0.webp",
+  "129925675_p0.webp",
+  "129979283_p0.webp",
+  "130047076_p0.webp",
+  "130131613_p0.webp",
+  "130182343_p0.webp",
+  "130192349_p0.webp",
+  "130204576_p0.webp",
+  "130210815_p0.webp",
+  "130226254_p0.webp",
+  "130238150_p0.webp",
+  "130411564_p0.webp",
+  "130455941_p0.webp",
+  "130653727_p0.webp",
+  "130680392_p0.webp",
+  "130749296_p0.webp",
+  "130807967_p0.webp",
+  "130906912_p1.webp",
+  "130919347_p0.webp",
+  "130953089_p0.webp",
+  "131278255_p0.webp",
+  "131321107_p0_scale.webp",
+  "131401379_p0.webp",
+  "131469363_p0.webp",
+  "131473460_p0.webp",
+  "131549884_p0.webp",
+  "131633444_p0.webp",
+  "131803654_p0_scale.webp",
+  "131883371_p0.webp",
+  "131886096_p0.webp",
+  "131904888_p0.webp",
+  "131951716_p0.webp",
+  "131963440_p3.webp",
+  "132314471_p0.webp",
+  "132325163_p0.webp",
+  "132503110_p0.webp",
+  "132527445_p0.webp",
+  "132567091_p0.webp",
+  "132641568_p0.webp",
+  "132641568_p0_2.webp",
+  "132688214_p0_scale.webp",
+  "132693589_p0.webp",
+  "132774336_p0.webp",
+  "132785785_p0.webp",
+  "132797463_p0.webp",
+  "132842116_p0.webp",
+  "132880723_p0.webp",
+  "133147553_p0.webp",
+  "133194210_p0_fanbox.webp",
+  "133464410_p0_scale.webp",
+  "133476201_p0.webp",
+  "133667360_p0.webp",
+  "133675668_p0.webp",
+  "133821343_p0.webp",
+  "133946183_p0.webp",
+  "134047972_p0_scale.webp",
+  "134128455_p0.webp",
+  "134192598_p0.webp",
+  "134192598_p0_2.webp",
+  "134265824_p0.webp",
+  "134440727_p0.webp",
+  "134567253_p0.webp",
+  "26cab71e1a6a54c4a6388793959ab973301621.webp",
+  "3ba845c68c67c77c33be2d80458ac2e37323950.webp",
+  "4818b3ed0b7cafb4776420772930371b19978160.webp",
+  "58401746_p0.webp",
+  "58732917_p0_scale.webp",
+  "62406788_p0_scale.webp",
+  "6f3ea0c82bbeba44811a6b62f5b36f0d8902030.webp",
+  "70992672_p0.webp",
+  "71671791_p0.webp",
+  "74649813_p0.webp",
+  "74698986_p0.webp",
+  "76112680_p0.webp",
+  "77554990_p0.webp",
+  "79106914_p0_scale.webp",
+  "79766697_p0.webp",
+  "80671757_p0.webp",
+  "81976038_p0_scale.webp",
+  "82492691_p0.webp",
+  "82847277_p0.webp",
+  "83127413_p0.webp",
+  "84188826_p0.webp",
+  "85053374_p0.webp",
+  "85755617_p0.webp",
+  "86513060_p0.webp",
+  "86563909_p0.webp",
+  "88316537_p0.webp",
+  "88317223_p0.webp",
+  "88682617_p0.webp",
+  "88689264_p0.webp",
+  "89040851_p0.webp",
+  "890642b946f3bea4fc3b49cd98b18eed425689806.webp",
+  "89068968_p0_scale.webp",
+  "89217890_p0.webp",
+  "90916471_p0.webp",
+  "91042401_p0.webp",
+  "91075758_p0.webp",
+  "91470579_p0.webp",
+  "91793829_p0.webp",
+  "92260989_p0.webp",
+  "93214089_p0.webp",
+  "93635321_p0.webp",
+  "93665243_p0.webp",
+  "93741521_p0.webp",
+  "93765583_p0.webp",
+  "94393768_p0.webp",
+  "94816278_p0.webp",
+  "94972199_p0.webp",
+  "95024728_p0.webp",
+  "95202851_p0.webp",
+  "95325916_p0_scale.webp",
+  "96217890_p0.webp",
+  "96485453_p0.webp",
+  "97520206_p0.webp",
+  "97681034_p0.webp",
+  "97724069_p0_scale.webp",
+  "9cf6b7a7d8709b90cd4dbf12497b932a27067119.webp",
+  "DSigxhjUEAICtZR.webp",
+  "FjSgJAfVQAEjgEN.webp",
+  "FS3Yjx9aAAAnikD.webp",
+  "FtQjeTDaIAAuCUi_scale.webp",
+  "FzEKHk-aYAAYhaJ.webp",
+  "Gb8M3Z-bYAAEJDJ_scale.webp",
+  "Gbc27RuagAAVwgk_scale.webp",
+  "GbH_c6WawAEHw5b.webp",
+  "GbH_c6WawAEHw5b_2.webp",
+  "GbIGADoa8AA4eDO.webp",
+  "Gc-KQtZa8AAlGSD_scale.webp",
+  "GcBo6bWaEAA6FaA_scale.webp",
+  "GceuHtkaMAE-UDs_scale.webp",
+  "GcQd65kaAAMlbns_scale.webp",
+  "GdiJOT4boAMzl6p.webp",
+  "GdiZr2eXUAA8YX_.webp",
+  "Gdnxnm3bgAEjz27.webp",
+  "GdPkKGDaAAAncGC.webp",
+  "Gf5LEzfawAEXgs8_scale.webp",
+  "Gf5PHx1asAAFeBa.webp",
+  "GfdzDueboAAMP7a_scale.webp",
+  "GfJvp5pboAEriZn_scale.webp",
+  "GgDPv0zbcAEgh5I.webp",
+  "GgM7oHlasAANlVx_scale.webp",
+  "GgmcoJIacAE16I9.webp",
+  "GgQNbaObQAAbjU_scale.webp",
+  "GgXD7USbIAAY1i5_scale.webp",
+  "Gh4OH0KaYAAHIOB.webp",
+  "GhdsjPtaIAAknmU_scale.webp",
+  "GhJFqt9bEAAWFqF_scale.webp",
+  "GhKYhUqbIAAGGxo_scale.webp",
+  "GhVvq2SaUAAUBf6.webp",
+  "GhWVHICbkAAmM2o.webp",
+  "GiB7y9paUAAoprS.webp",
+  "GiIW8iJaAAA2RHr.webp",
+  "GitG6b5aQAAefZE.webp",
+  "GjlkJmYaAAAbKLt.webp",
+  "Gjt4UEtacAAhaqv.webp",
+  "Gk3N8DRbwAErK4t_scale.webp",
+  "Gk8k0o9bMAAni8O.webp",
+  "Gl6J0ObbYAANFXF.webp",
+  "Gl8KIbxW4AA_vga_scale.webp",
+  "GlhfZ68acAAnuXr.webp",
+  "GlkLJE9bUAAcJrC_scale.webp",
+  "GlrTpvxbwAAyD2o.webp",
+  "GmflcfObEAADwoX.webp",
+  "GmmbnsbaEAEZBjp.webp",
+  "GmsBly6aYAAZt5C_scale.webp",
+  "Gmt5t6dakAALgs0_scale.webp",
+  "Gn2I8SHakAAWZUt.webp",
+  "GnCfzjQbsAAa7Cn_scale.webp",
+  "GnR_hB2aYAALPqI_scale.webp",
+  "GnWyFDjbcAAtQfq_scale.webp",
+  "GoAcYgFbwAEfFq_scale.webp",
+  "GokCakMXIAA6uni.webp",
+  "GOQJ19fbUAEWg1j_scale.webp",
+  "GozIZPyaEAABv_s.webp",
+  "Gp4a8zbawAQVyWe_scale.webp",
+  "GpIt9sIa4AECyJW_scale.webp",
+  "GpoJfspaMAA1Jga.webp",
+  "GQ1L4tSbwAAWVVV.webp",
+  "GQMANukb0AEGE1j.webp",
+  "GQvjPiAbEAAbawV.webp",
+  "GR30WR_aAAA4Sb8_scale.webp",
+  "GR4jsRhbQAAOk7C.webp",
+  "GRgvWSdbcAA-4Qf.webp",
+  "Gri_t5pagAABBqs.webp",
+  "GRJ7mFdawAADWjY_scale.webp",
+  "GRvh_2KbkAEmaIP_scale.webp",
+  "GsiFkGyasAAINVC.webp",
+  "Gskh5t6asAM-4nt_scale.webp",
+  "GsOhHtnaMAEsJcT.webp",
+  "Gs_pVKcbgAA6WBK_scale.webp",
+  "GTJodPubQAEIuoI_scale.webp",
+  "GTpRE7DaIAAAz6__scale.webp",
+  "Gu9tny7b0AEtQo6_scale.webp",
+  "GuC7EDMXoAAPa1u_scale.webp",
+  "GUFo6D8XMAAqWNh.webp",
+  "GuhuLeDWUAEQJzb.webp",
+  "GUJbiORaMAAyMbO_scale.webp",
+  "Gurtrv9XsAE-glt_scale.webp",
+  "GUXuKIqbYAAd1A0_scale.webp",
+  "GUySchfbQAAErlI_scale.webp",
+  "GVGReI3aEAQLmVf_scale.webp",
+  "GvKZr1MWQAAqWE6_scale.webp",
+  "GvnGRbaW0AAm6DI.webp",
+  "GWdaryUbUAAmdAN_scale.webp",
+  "GwhlbfraQAADv_4.webp",
+  "GwieZIIbMAAlDG7.webp",
+  "GwnHFpgWIAEzDfw.webp",
+  "GWSxEcjbQAA9hPQ.webp",
+  "Gx-7P9qbgAAg6aw.webp",
+  "GxBGvi_bUAA53tG_scale.webp",
+  "GxGbVQdakAA9x3b.webp",
+  "GXxWk6wakAInWy-_scale.webp",
+  "GYT9TbxaQAAquyM_scale.webp",
+  "GYVXb71aUAAVXHT_scale.webp",
+  "GzFp4ygbMAAI8tJ.webp",
+  "GZmKHXdaMAAIUbM_scale.webp"
+]
 };
 
+/**
+ * 处理 API 请求
+ * @param {Request} request - 请求对象
+ * @returns {Promise<Response>} 响应对象
+ */
 async function handleRequest(request) {
-    // 1. 预检请求
+    // 1. 预检请求处理
     if (request.method === 'OPTIONS') {
         return new Response(null, {
             status: 200,
@@ -144,7 +1102,16 @@ async function handleRequest(request) {
                 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
                 'Access-Control-Allow-Headers': 'Content-Type, User-Agent, Accept',
                 'Access-Control-Max-Age': '86400',
+                'Content-Length': '0'
             }
+        });
+    }
+
+    // 2. 请求方法检查
+    if (request.method !== 'GET' && request.method !== 'POST') {
+        return new Response('Method Not Allowed', {
+            status: 405,
+            headers: { 'Allow': 'GET, POST, OPTIONS' }
         });
     }
 
@@ -152,140 +1119,157 @@ async function handleRequest(request) {
         const url = new URL(request.url);
         const imgType = (url.searchParams.get('type') || '').toLowerCase().trim();
         const format = (url.searchParams.get('format') || 'json').toLowerCase().trim();
+        const countParam = url.searchParams.get('count');
         const returnMode = (url.searchParams.get('return') || 'json').toLowerCase().trim();
-        const debug = url.searchParams.get('debug'); // 调试参数
 
         const baseUrl = getBaseUrl(request);
         
-        // 2. 帮助页面
+        // 3. 处理帮助页面（无参数）
         if (!imgType) {
-            const help = `🖼️ 随机图片 API (已优化)
+            const helpText = `🖼️ 随机图片展示器 API (EdgeOne Pages)
 
-用法:
-• ?type=pc - 横屏图片
-• ?type=pe - 竖屏图片  
-• ?type=ua - 自动检测设备
-• ?debug  - 显示调试信息
+用法说明:
+• ?type=pc - 获取横屏随机图片
+• ?type=pe - 获取竖屏随机图片  
+• ?type=ua - 根据设备类型自动选择图片
 
-参数:
-• ?format=json/text
-• ?return=redirect (仅单张)
-• ?debug - 显示 UA 和检测结果
+参数选项:
+• ?count=N     - 返回 N 张图片 (1-100，默认: 1)
+• ?format=json - JSON 格式返回 (默认)
+• ?format=text - 文本格式返回 URL
+• ?return=redirect - 直接重定向到单张图片 (仅 count=1 有效)
 
-统计:
-• PC: ${IMAGES.pc.length} 张
-• PE: ${IMAGES.pe.length} 张
+示例:
+• /api/?type=ua
+• /api/?type=pc&count=3
+• /api/?type=pe&format=text&count=5
+• /api/?type=pc&return=redirect
+
+统计信息:
+• 横屏图片: ${IMAGES.pc.length} 张
+• 竖屏图片: ${IMAGES.pe.length} 张
+• 当前域名: ${baseUrl}
 • 时间: ${new Date().toISOString()}`;
-            
-            return new Response(help, {
+
+            return new Response(helpText, {
                 status: 200,
                 headers: {
                     'Content-Type': 'text/plain; charset=utf-8',
                     'Access-Control-Allow-Origin': '*',
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0'
+                    'Cache-Control': 'no-cache'
                 }
             });
         }
 
-        // 3. 获取 User-Agent 和设备检测
-        const userAgent = request.headers.get('User-Agent') || 'unknown';
-        const realIP = request.headers.get('CF-Connecting-IP') || 
-                       request.headers.get('X-Real-IP') || 
-                       request.headers.get('X-Forwarded-For') || 'unknown';
-        
-        let deviceType = imgType;
-        
-        if (imgType === 'ua') {
-            const isMobile = isMobileDevice(userAgent);
-            deviceType = isMobile ? 'pe' : 'pc';
-            
-            // 调试信息
-            if (debug) {
-                return new Response(JSON.stringify({
-                    detected: 'ua',
-                    isMobile,
-                    deviceType,
-                    userAgent: userAgent.substring(0, 100),
-                    realIP,
-                    timestamp: Date.now()
-                }, null, 2), {
-                    headers: { 'Content-Type': 'application/json' }
-                });
+        // 4. 验证并解析参数
+        let count = 1;
+        if (countParam) {
+            const parsed = parseInt(countParam, 10);
+            if (!isNaN(parsed) && parsed >= 1 && parsed <= 100) {
+                count = parsed;
             }
         }
 
+        // 5. 确定设备类型
+        let deviceType = imgType;
+        if (imgType === 'ua') {
+            const userAgent = request.headers.get('User-Agent') || '';
+            deviceType = isMobileDevice(userAgent) ? 'pe' : 'pc';
+        }
+
         if (deviceType !== 'pc' && deviceType !== 'pe') {
-            return new Response('Invalid type', { status: 400 });
+            return new Response('Invalid type. Use: pc, pe, or ua', {
+                status: 400,
+                headers: { 'Content-Type': 'text/plain' }
+            });
         }
 
-        // 4. 获取随机图片（关键：强制不缓存）
+        // 6. 获取图片列表和随机图片
         const imageList = IMAGES[deviceType];
-        const randomImage = getRandomItem(imageList, request);
-        
-        if (!randomImage) {
-            return new Response('No images', { status: 404 });
+        const selectedImages = getRandomItems(imageList, count);
+
+        if (selectedImages.length === 0) {
+            return new Response('No images available', { status: 404 });
         }
 
-        const imageUrl = buildImageUrl(randomImage, deviceType, baseUrl);
+        // 7. 构建响应
+        const imageUrls = selectedImages.map(name => 
+            buildImageUrl(name, deviceType, baseUrl)
+        ).filter(Boolean);
 
-        // 5. 重定向模式
-        if (returnMode === 'redirect') {
+        // 8. 重定向模式（仅支持单张）
+        if (returnMode === 'redirect' && count === 1 && imageUrls[0]) {
             return new Response(null, {
                 status: 302,
                 headers: {
-                    'Location': imageUrl,
+                    'Location': imageUrls[0],
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0',
                     'Access-Control-Allow-Origin': '*'
                 }
             });
         }
 
-        // 6. JSON 响应（带强制刷新头）
-        const response = {
+        // 9. 文本格式
+        if (format === 'text' || format === 'url' || format === 'txt') {
+            const text = imageUrls.join('\n');
+            return new Response(text, {
+                status: 200,
+                headers: {
+                    'Content-Type': 'text/plain; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'no-cache'
+                }
+            });
+        }
+
+        // 10. JSON 格式（默认）
+        const jsonResponse = {
             success: true,
             code: 200,
             message: 'Success',
+            count: imageUrls.length,
             type: deviceType,
-            detected_by: imgType === 'ua' ? 'user-agent' : 'manual',
-            image: {
-                filename: randomImage,
-                url: imageUrl
-            },
-            debug: debug ? {
-                userAgent: userAgent.substring(0, 100),
-                realIP,
-                isMobile: deviceType === 'pe',
-                timestamp: Date.now()
-            } : undefined
+            total_available: imageList.length,
+            timestamp: Date.now(),
+            api_version: '2.0',
+            images: imageUrls.map((url, index) => ({
+                id: index + 1,
+                url: url,
+                filename: selectedImages[index]
+            }))
         };
 
-        return new Response(JSON.stringify(response, null, 2), {
+        return new Response(JSON.stringify(jsonResponse, null, 2), {
             status: 200,
             headers: {
                 'Content-Type': 'application/json; charset=utf-8',
                 'Access-Control-Allow-Origin': '*',
-                // 🔥 关键：强制不缓存
-                'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
                 'Pragma': 'no-cache',
-                'Expires': '0',
-                // 添加随机 ETag 防止 CDN 缓存
-                'ETag': `"${Math.random().toString(36).substr(2, 9)}"`,
-                // 添加时间戳防止代理缓存
-                'X-Timestamp': Date.now().toString()
+                'Expires': '0'
             }
         });
 
     } catch (error) {
-        return new Response(JSON.stringify({
+        // 11. 错误处理
+        console.error('API Error:', error);
+
+        const errorResponse = {
+            success: false,
+            code: 500,
+            message: 'Internal Server Error',
             error: error.message,
             timestamp: Date.now()
-        }), {
+        };
+
+        return new Response(JSON.stringify(errorResponse), {
             status: 500,
-            headers: { 'Content-Type': 'application/json' }
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+            }
         });
     }
 }
+
+
