@@ -3,14 +3,31 @@ export function onRequest(context) {
     return handleRequest(context.request);
 }
 
-// 检测是否为移动设备
+// 检测是否为移动设备（使用你提供的版本）
 function isMobileDevice(userAgent) {
     if (!userAgent) return false;
+    
+    var mobileKeywords = [
+        'Mobile', 'Android', 'iPhone', 'iPad', 'iPod', 'BlackBerry', 
+        'Windows Phone', 'Opera Mini', 'IEMobile', 'Mobile Safari',
+        'webOS', 'Kindle', 'Silk', 'Fennec', 'Maemo', 'Tablet'
+    ];
+    
     var lowerUserAgent = userAgent.toLowerCase();
-    var mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i;
-    return mobileRegex.test(lowerUserAgent);
+    
+    // 检查移动设备关键词
+    for (var i = 0; i < mobileKeywords.length; i++) {
+        if (lowerUserAgent.includes(mobileKeywords[i].toLowerCase())) {
+            return true;
+        }
+    }
+    
+    // 检查移动设备正则表达式
+    var mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i;
+    return mobileRegex.test(userAgent);
 }
 
+// 这里保持你的完整图片数组
 var pcImages = [
   "084e488e57a0ec6d5cc3ed0bd555b464108550804.webp",
   "100234583_p0.webp",
@@ -1039,7 +1056,6 @@ async function handleRequest(request) {
         var imgType = url.searchParams.get('type');
         var format = url.searchParams.get('format') || 'json';
         var count = parseInt(url.searchParams.get('count')) || 1;
-        var returnType = url.searchParams.get('return') || 'json'; // 新增return参数
         
         // 获取基础URL
         var baseUrl = getBaseUrl(request.url);
@@ -1059,17 +1075,18 @@ async function handleRequest(request) {
         if (!imgType) {
             var helpText = '🖼️ 随机图片展示器 API (EdgeOne Pages)\n\n';
             helpText += '使用方法:\n';
-            helpText += '• /ua - 根据设备类型重定向到单张图片（默认）\n';
-            helpText += '• /pc - 重定向到横屏图片\n';
-            helpText += '• /pe - 重定向到竖屏图片\n';
-            helpText += '\nAPI参数:\n';
             helpText += '• ?type=pc - 获取横屏随机图片\n';
             helpText += '• ?type=pe - 获取竖屏随机图片\n';
             helpText += '• ?type=ua - 根据设备类型自动选择图片\n';
-            helpText += '• ?format=text - 以文本格式返回URL\n';
+            helpText += '\n可选参数:\n';
+            helpText += '• ?format=text - 以文本格式返回URL（每行一个）\n';
             helpText += '• ?count=N - 返回N张图片（1-50）\n';
-            helpText += '• ?return=json - 返回JSON格式\n';
+            helpText += '• ?return=json - 返回JSON格式（默认）\n';
             helpText += '• ?return=redirect - 重定向到单张图片\n';
+            helpText += '\n示例:\n';
+            helpText += '• /api/?type=ua\n';
+            helpText += '• /api/?type=pc&format=text&count=4\n';
+            helpText += '• /api/?type=pe&count=3\n';
             
             return new Response(helpText, {
                 status: 200,
@@ -1107,40 +1124,6 @@ async function handleRequest(request) {
         var imageUrls = selectedImages.map(function(image) {
             return buildImageUrl(image, deviceType, baseUrl);
         });
-        
-        // 判断是否应该重定向（仿照PHP API逻辑）
-        // 当count=1且return=redirect时，或者没有明确指定format/json时
-        var shouldRedirect = false;
-        
-        if (count === 1) {
-            // 情况1：明确要求重定向
-            if (returnType === 'redirect' || format === 'redirect') {
-                shouldRedirect = true;
-            }
-            // 情况2：没有指定format或return，且是通过/pc、/pe、/ua访问的
-            // 这里我们检查URL路径
-            else if (url.pathname === '/api/') {
-                // 通过API端点访问，默认返回JSON
-                shouldRedirect = false;
-            } else {
-                // 其他情况，默认重定向（为了与/pc、/pe、/ua的重定向规则一致）
-                shouldRedirect = true;
-            }
-        }
-        
-        // 重定向逻辑
-        if (shouldRedirect) {
-            return new Response(null, {
-                status: 302,
-                headers: {
-                    'Location': imageUrls[0],
-                    'Cache-Control': 'no-cache, no-store, must-revalidate',
-                    'Pragma': 'no-cache',
-                    'Expires': '0',
-                    'Access-Control-Allow-Origin': '*'
-                }
-            });
-        }
         
         // 文本格式返回
         if (format === 'text' || format === 'url' || format === 'txt') {
