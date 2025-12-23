@@ -37,9 +37,10 @@ GET /ua
 
 ### 设备自适应+指定图片数量
 ```
-GET /api/?type=ua&format=text&count=4
+GET /api/?type=ua&format=text
+GET GET /api/?type=ua&format=text&count=4
 ```
-根据用户设备类型自动选择图片格式（桌面设备返回横屏，移动设备返回竖屏）+ 4个图片链接
+根据用户设备类型自动选择图片格式（桌面设备返回横屏，移动设备返回竖屏) 可指定数量返回图片链接 count=xxx 
 
 ## 部署方法
 
